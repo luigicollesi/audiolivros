@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 type User = { email: string; name: string | null };
-type Session = { token: string; user: User } | null;
+type Session = { token: string; user: User; expiresAt?: string | null } | null;
 
 type AuthContextType = {
   session: Session;

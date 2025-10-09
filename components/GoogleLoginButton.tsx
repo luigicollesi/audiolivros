@@ -15,6 +15,7 @@ const SIMULATED_ID_TOKEN = 'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJpc3MiOiJodHRw
 
 type SessionPayload = {
   token: string;
+  expiresAt?: string | null;
   user: { email: string; name: string | null };
 };
 
@@ -26,7 +27,9 @@ type Props = {
   /** Desabilita o botão quando necessário */
   disabled?: boolean;
   /** Caminho do endpoint (se quiser customizar) */
-  apiPath?: string; // default: "/auth/google/id-token"
+  apiPath?: string; // default: "/auth/id-token"
+  /** Nome do provider (ex: "google") enviado para API */
+  provider?: string;
   /** Rótulo do botão */
   label?: string;
 };
@@ -35,7 +38,8 @@ export default function GoogleLoginButton({
   onSession,
   onError,
   disabled,
-  apiPath = '/auth/google/id-token',
+  apiPath = '/auth/id-token',
+  provider = 'google',
   label = 'Continuar com Google (Simulado)',
 }: Props) {
   const [loading, setLoading] = useState(false);
@@ -50,32 +54,33 @@ export default function GoogleLoginButton({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          provider,
           id_token: SIMULATED_ID_TOKEN,
           device: { platform: Platform.OS, app_version: '1.0.0' },
         }),
       });
 
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(json?.message || `Falha: ${res.status} ${res.statusText ?? ''}`);
-    }
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json?.message || `Falha: ${res.status} ${res.statusText ?? ''}`);
+      }
 
-    // => seu back retorna exatamente estes campos:
-    const { sessionToken, user } = json as {
-      sessionToken: string;
-      user: { email: string; name: string | null};
-    };
+      // => seu back retorna exatamente estes campos:
+      const { sessionToken, expiresAt, user } = json as {
+        sessionToken: string;
+        expiresAt?: string | null;
+        user: { email: string; name: string | null};
+      };
 
-    if (!sessionToken) throw new Error('Resposta não contém sessionToken.');
+      if (!sessionToken) throw new Error('Resposta não contém sessionToken.');
 
-
-      onSession?.({ token: sessionToken, user: user });
+      onSession?.({ token: sessionToken, expiresAt, user });
     } catch (err: any) {
       onError?.(String(err?.message || err));
     } finally {
       setLoading(false);
     }
-  }, [loading, disabled, apiPath, onSession, onError]);
+  }, [loading, disabled, apiPath, provider, onSession, onError]);
 
   return (
     <Pressable

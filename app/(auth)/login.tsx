@@ -1,6 +1,7 @@
 // app/(auth)/login.tsx
 import React from 'react';
-import { SafeAreaView, View, Text, ActivityIndicator } from 'react-native';
+import { View, Text, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import GoogleLoginButton from '@/components/GoogleLoginButton';
 import { useAuth } from '@/auth/AuthContext';
@@ -15,13 +16,13 @@ export default function LoginScreen() {
   const loading = useSelector((s: RootState) => Boolean(s.auth?.loading));
   const error   = useSelector((s: RootState) => s.auth?.error ?? null);
 
-  const handleSession = async (payload: { token: string; user: { email: string; name: string | null} }) => {
+  const handleSession = async (payload: { token: string; expiresAt?: string | null; user: { email: string; name: string | null} }) => {
     // 1) atualiza Redux se quiser métricas/UI
     dispatch({ type: 'auth/loginSuccess', payload });
 
     // 2) efetivamente loga no app via Context
     console.log('Fazendo signIn no AuthContext...');
-    await signIn({ token: payload.token, user: payload.user });
+    await signIn({ token: payload.token, expiresAt: payload.expiresAt, user: payload.user });
 
     // 3) opcional: navegar para a Home
     // router.replace('/(app)/home');

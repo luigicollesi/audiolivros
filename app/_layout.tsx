@@ -5,6 +5,7 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect, useMemo } from 'react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
@@ -36,9 +37,11 @@ function RootLayoutNav() {
   return (
     <Provider store={store}>
       <AuthProvider>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <GuardedStack />
-        </ThemeProvider>
+        <SafeAreaProvider>
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <GuardedStack />
+          </ThemeProvider>
+        </SafeAreaProvider>
       </AuthProvider>
     </Provider>
   );
