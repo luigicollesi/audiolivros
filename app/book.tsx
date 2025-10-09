@@ -38,7 +38,7 @@ export default function BookScreen() {
   const [audioReady, setAudioReady] = useState(false);
 
   // Player
-  const player = useAudioPlayer(undefined, 200);
+  const player = useAudioPlayer(undefined, { updateInterval: 200 });
   const status = useAudioPlayerStatus(player);
 
   const imageUri = useMemo(() => {
