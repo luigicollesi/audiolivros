@@ -11,7 +11,8 @@ export default function AuthLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="login" />
-      {/* outras telas públicas */}
+      <Stack.Screen name="phone" />
+      <Stack.Screen name="code" />
     </Stack>
   );
 }

@@ -1,65 +1,128 @@
 // app/(auth)/login.tsx
-import React from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
+import React, { useCallback, useEffect } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
 import GoogleLoginButton from '@/components/GoogleLoginButton';
 import { useAuth } from '@/auth/AuthContext';
+import { RootState } from '@/store';
 
-type RootState = {
-  auth?: { loading?: boolean; error?: string | null };
+type SessionPayload = {
+  token: string;
+  expiresAt?: string | null;
+  user: {
+    email: string;
+    name: string | null;
+    phone?: string | null;
+    language?: string | null;
+    genre?: string | null;
+  };
 };
+
+type PendingPhonePayload = {
+  pendingToken: string;
+  pendingTokenExpiresAt?: string | null;
+};
+
+const createMachineCode = () =>
+  `device-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 export default function LoginScreen() {
   const dispatch = useDispatch();
-  const { signIn } = useAuth(); // <-- pega do contexto
+  const router = useRouter();
+  const { signIn } = useAuth();
+
   const loading = useSelector((s: RootState) => Boolean(s.auth?.loading));
-  const error   = useSelector((s: RootState) => s.auth?.error ?? null);
+  const error = useSelector((s: RootState) => s.auth?.error ?? null);
+  const pendingPhone = useSelector((s: RootState) => s.auth?.pendingPhone);
 
-  const handleSession = async (payload: { token: string; expiresAt?: string | null; user: { email: string; name: string | null} }) => {
-    // 1) atualiza Redux se quiser métricas/UI
-    dispatch({ type: 'auth/loginSuccess', payload });
+  useEffect(() => {
+    if (pendingPhone?.pendingToken) {
+      router.replace('/(auth)/phone');
+    }
+  }, [pendingPhone?.pendingToken, router]);
 
-    // 2) efetivamente loga no app via Context
-    console.log('Fazendo signIn no AuthContext...');
-    await signIn({ token: payload.token, expiresAt: payload.expiresAt, user: payload.user });
+  const completeLogin = useCallback(
+    async (payload: SessionPayload) => {
+      dispatch({ type: 'auth/loginSuccess', payload });
+      await signIn({
+        token: payload.token,
+        expiresAt: payload.expiresAt,
+        user: payload.user,
+      });
+    },
+    [dispatch, signIn]
+  );
 
-    // 3) opcional: navegar para a Home
-    // router.replace('/(app)/home');
-  };
+  const handleSession = useCallback(
+    async (payload: SessionPayload) => {
+      console.log('[Auth] Sessão completa, entrando no app.');
+      await completeLogin(payload);
+    },
+    [completeLogin]
+  );
 
-  const handleError = (message: string) => {
-    dispatch({ type: 'auth/loginError', payload: message });
-  };
+  const handleRequiresPhone = useCallback(
+    (payload: PendingPhonePayload) => {
+      const machineCode = createMachineCode();
+      dispatch({
+        type: 'auth/loginRequiresPhone',
+        payload: {
+          pendingToken: payload.pendingToken,
+          pendingTokenExpiresAt: payload.pendingTokenExpiresAt,
+          machineCode,
+        },
+      });
+      router.replace('/(auth)/phone');
+    },
+    [dispatch, router]
+  );
+
+  const handleError = useCallback(
+    (message: string) => {
+      dispatch({ type: 'auth/loginError', payload: message });
+    },
+    [dispatch]
+  );
+
+  const handleLoadingChange = useCallback(
+    (isLoading: boolean) => {
+      if (isLoading) {
+        dispatch({ type: 'auth/loginStart' });
+      }
+    },
+    [dispatch]
+  );
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
-      <View style={{ flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' }}>
-        <View style={{ width: '100%', alignItems: 'center', marginBottom: 16 }}>
-          <Text style={{ fontSize: 28, fontWeight: '800' }}>Bem-vindo</Text>
-          <Text style={{ fontSize: 14, opacity: 0.7, textAlign: 'center' }}>
-            Entre para continuar
-          </Text>
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Bem-vindo</Text>
+          <Text style={styles.subtitle}>Entre para continuar</Text>
         </View>
 
-        <View style={{ width: '100%', gap: 12 as any }}>
-          <GoogleLoginButton onSession={handleSession} onError={handleError} />
+        <View style={styles.body}>
+          <GoogleLoginButton
+            onSession={handleSession}
+            onRequiresPhone={handleRequiresPhone}
+            onError={handleError}
+            onLoadingChange={handleLoadingChange}
+          />
+
           {loading && (
-            <View style={{ alignItems: 'center', marginTop: 8 }}>
+            <View style={styles.loadingRow}>
               <ActivityIndicator />
-              <Text style={{ marginTop: 6, fontSize: 12, opacity: 0.7 }}>Autenticando…</Text>
+              <Text style={styles.loadingText}>Autenticando…</Text>
             </View>
           )}
 
-          {!!error && (
-            <Text style={{ color: '#ef4444', fontSize: 12, textAlign: 'center', marginTop: 8 }}>
-              {error}
-            </Text>
-          )}
+          {!!error && <Text style={styles.error}>{error}</Text>}
         </View>
 
-        <View style={{ width: '100%', alignItems: 'center', marginTop: 24 }}>
-          <Text style={{ fontSize: 12, opacity: 0.6, textAlign: 'center' }}>
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
             Ao continuar, você concorda com nossos Termos e Política de Privacidade.
           </Text>
         </View>
@@ -67,3 +130,17 @@ export default function LoginScreen() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safe: { flex: 1 },
+  container: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
+  header: { width: '100%', alignItems: 'center', marginBottom: 16 },
+  title: { fontSize: 28, fontWeight: '800' },
+  subtitle: { fontSize: 14, opacity: 0.7, textAlign: 'center' },
+  body: { width: '100%', gap: 16 as any, alignItems: 'center' },
+  loadingRow: { alignItems: 'center', marginTop: 8 },
+  loadingText: { marginTop: 6, fontSize: 12, opacity: 0.7 },
+  footer: { width: '100%', alignItems: 'center', marginTop: 24 },
+  footerText: { fontSize: 12, opacity: 0.6, textAlign: 'center' },
+  error: { color: '#ef4444', fontSize: 12, textAlign: 'center', marginTop: 8 },
+});

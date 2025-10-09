@@ -1,13 +1,77 @@
 // src/store/index.ts (ou "@/store")
 import { configureStore } from '@reduxjs/toolkit';
 
-const authInitial = { loading: false, error: null as string | null, user: null as any };
-function authReducer(state = authInitial, action: any) {
+type AuthSession = {
+  token: string;
+  expiresAt?: string | null;
+  user: {
+    email: string;
+    name: string | null;
+    phone?: string | null;
+    language?: string | null;
+    genre?: string | null;
+  };
+};
+
+type AuthPendingPhone = {
+  pendingToken: string;
+  pendingTokenExpiresAt?: string | null;
+  machineCode: string;
+  phone?: string | null;
+  ddd?: string | null;
+};
+
+type AuthState = {
+  loading: boolean;
+  error: string | null;
+  session: AuthSession | null;
+  pendingPhone: AuthPendingPhone | null;
+};
+
+const authInitial: AuthState = {
+  loading: false,
+  error: null,
+  session: null,
+  pendingPhone: null,
+};
+
+function authReducer(state: AuthState = authInitial, action: any): AuthState {
   switch (action.type) {
-    case 'auth/loginStart':   return { ...state, loading: true,  error: null };
-    case 'auth/loginSuccess': return { ...state, loading: false, user: action.payload };
-    case 'auth/loginError':   return { ...state, loading: false, error: action.payload };
-    default: return state;
+    case 'auth/loginStart':
+      return { ...state, loading: true, error: null };
+    case 'auth/loginSuccess':
+      return {
+        ...state,
+        loading: false,
+        error: null,
+        session: action.payload as AuthSession,
+        pendingPhone: null,
+      };
+    case 'auth/loginError':
+      return { ...state, loading: false, error: action.payload };
+    case 'auth/loginRequiresPhone':
+      return {
+        ...state,
+        loading: false,
+        error: null,
+        pendingPhone: action.payload as AuthPendingPhone,
+        session: null,
+      };
+    case 'auth/phoneRequestSuccess':
+      return {
+        ...state,
+        pendingPhone: state.pendingPhone
+          ? {
+              ...state.pendingPhone,
+              phone: (action.payload?.phone as string | null | undefined) ?? state.pendingPhone.phone,
+              ddd: (action.payload?.ddd as string | null | undefined) ?? state.pendingPhone.ddd,
+            }
+          : state.pendingPhone,
+      };
+    case 'auth/logout':
+      return { ...authInitial };
+    default:
+      return state;
   }
 }
 

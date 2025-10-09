@@ -10,35 +10,38 @@ import {
   Platform,
   Pressable,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Text, View } from '@/components/Themed';
 import { GridCards, BookItem, BooksResponse } from '@/components/books';
-import { GenreModal } from '@/components/GenreModal';
+import { GenreModal, GenreOption } from '@/components/GenreModal';
 import { BASE_URL } from '@/constants/API';
 
 import { useAuthedFetch } from '@/auth/useAuthedFetch';
 import { useSafeInsets } from '@/hooks/useSafeInsets';
+import { useAuth } from '@/auth/AuthContext';
 
 const PAGE_SIZE = 10;
 const LANGUAGE_ID = 'pt-BR';
 
 export default function TabOneScreen() {
-  console.log('Renderizando TabOneScreen...');  
   const router = useRouter();
   const insets = useSafeInsets();
   const { fetchJSON } = useAuthedFetch();
+  const { refreshSession } = useAuth();
 
   const [total, setTotal] = useState<number | null>(null);
   const [pages, setPages] = useState<Record<number, BookItem[]>>({});
   const [loadingPages, setLoadingPages] = useState<Set<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedGenre, setSelectedGenre] = useState<{ id: string; name: string } | null>(null);
+  const [selectedGenre, setSelectedGenre] = useState<GenreOption | null>(null);
   const [showGenreModal, setShowGenreModal] = useState(false);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
 
   const screenWidth = Dimensions.get('window').width;
   const flatRef = useRef<FlatList<number>>(null);
+  const initializedRef = useRef(false);
+  const prefetchedPagesRef = useRef<Set<number>>(new Set());
 
   const maxPageIndex = useMemo(() => {
     if (total == null) return 0;
@@ -53,6 +56,9 @@ export default function TabOneScreen() {
   const fetchPage = useCallback(
     async (pageIndex: number, force = false) => {
       if (pageIndex < 0) return;
+      if (force) {
+        prefetchedPagesRef.current.delete(pageIndex);
+      }
       if (!force && pages[pageIndex]) return;
       if (loadingPages.has(pageIndex)) return;
 
@@ -62,9 +68,9 @@ export default function TabOneScreen() {
       const start = pageIndex * PAGE_SIZE;
       const end = start + (PAGE_SIZE - 1);
 
-      const genreValue = selectedGenre?.name ?? selectedGenre?.id ?? '';
+      const genreId = selectedGenre?.id ?? null;
       const base = selectedGenre ? `${BASE_URL}/books/genre` : `${BASE_URL}/books`;
-      const genreParam = selectedGenre ? `&genre=${encodeURIComponent(genreValue)}` : '';
+      const genreParam = selectedGenre ? `&genreId=${encodeURIComponent(String(genreId))}` : '';
       const url = `${base}?start=${start}&end=${end}&languageId=${encodeURIComponent(LANGUAGE_ID)}${genreParam}`;
 
       try {
@@ -76,7 +82,10 @@ export default function TabOneScreen() {
           setTotal(old => (old ?? 0));
         }
 
-        setPages(prev => ({ ...prev, [pageIndex]: data.items || [] }));
+        setPages(prev => {
+          prefetchedPagesRef.current.add(pageIndex);
+          return { ...prev, [pageIndex]: data.items || [] };
+        });
       } catch (e: any) {
         // Se deu 5xx, trate como “página vazia”
         const msg = String(e?.message ?? e);
@@ -97,15 +106,15 @@ export default function TabOneScreen() {
     [loadingPages, pages, selectedGenre, fetchJSON]
   );
 
-  // Prefetch só da próxima se "parecer existir" (baseado em total)
-  const prefetchNeighbors = useCallback(
+  const prefetchNext = useCallback(
     (pageIndex: number) => {
-      if (total == null || pageIndex < Math.ceil((total - 1) / PAGE_SIZE)) {
-        fetchPage(pageIndex + 1).catch(() => {});
-      }
-      fetchPage(pageIndex - 1).catch(() => {});
+      const nextIndex = pageIndex + 1;
+      if (nextIndex < 0) return;
+      if (total != null && nextIndex > maxPageIndex) return;
+      if (prefetchedPagesRef.current.has(nextIndex)) return;
+      fetchPage(nextIndex).catch(() => {});
     },
-    [fetchPage, total]
+    [fetchPage, total, maxPageIndex]
   );
 
   // Ao trocar o gênero: zere dados, volte para página 0 e resete o scroll
@@ -113,30 +122,56 @@ export default function TabOneScreen() {
     setPages({});
     setTotal(null);
     setCurrentPageIndex(0);
+    initializedRef.current = false;
+    prefetchedPagesRef.current = new Set();
     flatRef.current?.scrollToIndex({ index: 0, animated: false, viewPosition: 0 });
-    fetchPage(0, true).then(() => prefetchNeighbors(0));
+    fetchPage(0, true).then(() => {
+      prefetchNext(0);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedGenre]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshSession().catch(() => {});
+      if (!initializedRef.current) {
+        initializedRef.current = true;
+        if (!pages[0]) {
+          fetchPage(0, true).then(() => {
+            prefetchNext(0);
+          });
+        } else {
+          prefetchNext(currentPageIndex);
+        }
+      } else {
+        prefetchNext(currentPageIndex);
+      }
+
+      return () => {};
+    }, [refreshSession, fetchPage, prefetchNext, pages, currentPageIndex])
+  );
 
   const onMomentumEnd = useCallback(
     (ev: any) => {
       const x: number = ev.nativeEvent.contentOffset?.x ?? 0;
       const pageIndex = Math.round(x / screenWidth);
-      setCurrentPageIndex(pageIndex);
-      fetchPage(pageIndex).then(() => prefetchNeighbors(pageIndex));
+      if (pageIndex !== currentPageIndex) {
+        setCurrentPageIndex(pageIndex);
+      }
+      fetchPage(pageIndex).then(() => prefetchNext(pageIndex));
     },
-    [screenWidth, fetchPage, prefetchNeighbors]
+    [screenWidth, fetchPage, prefetchNext, currentPageIndex]
   );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       await fetchPage(currentPageIndex, true);
-      prefetchNeighbors(currentPageIndex);
+      prefetchNext(currentPageIndex);
     } finally {
       setRefreshing(false);
     }
-  }, [fetchPage, prefetchNeighbors, currentPageIndex]);
+  }, [fetchPage, prefetchNext, currentPageIndex]);
 
   const handlePressBook = useCallback(
     (b: BookItem) => {
@@ -195,11 +230,7 @@ export default function TabOneScreen() {
         </Pressable>
       </View>
 
-      {error && (
-        <View style={screenStyles.errorBox}>
-          <Text style={screenStyles.errorText}>{error}</Text>
-        </View>
-      )}
+      {/* Silencia mensagens de erro para filtros sem resultado suportado */}
 
       <FlatList
         ref={flatRef}

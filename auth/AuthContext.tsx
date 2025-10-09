@@ -1,7 +1,22 @@
 // src/auth/AuthContext.tsx
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { BASE_URL } from '@/constants/API';
 
-type User = { email: string; name: string | null };
+type User = {
+  email: string;
+  name: string | null;
+  phone?: string | null;
+  language?: string | null;
+  genre?: string | null;
+};
 type Session = { token: string; user: User; expiresAt?: string | null } | null;
 
 type AuthContextType = {
@@ -9,13 +24,87 @@ type AuthContextType = {
   signIn: (s: NonNullable<Session>) => void;
   signOut: () => void;
   loading: boolean;
+  refreshSession: () => Promise<void>;
+  refreshing: boolean;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const REFRESH_THRESHOLD_MS = 5 * 60_000; // renova ~5 minutos antes de expirar
+const MIN_REFRESH_DELAY_MS = 15_000; // evita loops de refresh imediatos
+const AUTO_REFRESH_ENABLED = true;
+
+type TimeSourceConfig = {
+  url: string;
+  method: 'HEAD' | 'GET';
+  timeoutMs: number;
+  parseHeaders: (headers: Headers) => string | undefined;
+};
+
+const TIME_SOURCES: TimeSourceConfig[] = [
+  {
+    url: 'https://www.google.com',
+    method: 'HEAD',
+    timeoutMs: 2000,
+    parseHeaders: (headers) => headers.get('date') ?? undefined,
+  },
+  {
+    url: 'https://www.cloudflare.com',
+    method: 'HEAD',
+    timeoutMs: 2000,
+    parseHeaders: (headers) => headers.get('date') ?? undefined,
+  },
+];
+
+async function fetchFromSource(config: TimeSourceConfig): Promise<number> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+  try {
+    const res = await fetch(config.url, { method: config.method, signal: controller.signal });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
+    const raw = config.parseHeaders(res.headers);
+    if (!raw) throw new Error('Cabeçalho sem data');
+
+    const ms = Date.parse(raw);
+    if (Number.isNaN(ms)) throw new Error('Data inválida');
+
+    return ms;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchGlobalTimestamp(): Promise<number> {
+  let lastError: unknown = null;
+  for (const source of TIME_SOURCES) {
+    try {
+      return await fetchFromSource(source);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Falha ao obter horário global');
+}
+
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [session, setSession] = useState<Session>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshingRef = useRef(false);
+  const globalOffsetRef = useRef<number>(0);
+  const sessionRef = useRef<Session>(null);
+
+  const clearRefreshTimer = useCallback(() => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
+  }, []);
 
   // Boot da sessão (rodar uma única vez)
   useEffect(() => {
@@ -32,18 +121,136 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     return () => { mounted = false; };
   }, []);
 
+  const signIn = useCallback((s: NonNullable<Session>) => {
+    sessionRef.current = s;
+    setSession(s);
+  }, []);
+
+  const signOut = useCallback(() => {
+    clearRefreshTimer();
+    sessionRef.current = null;
+    setSession(null);
+  }, [clearRefreshTimer]);
+
+  const syncGlobalOffset = useCallback(async () => {
+    try {
+      const globalNow = await fetchGlobalTimestamp();
+      globalOffsetRef.current = globalNow - Date.now();
+    } catch (err) {
+      console.warn('[Auth] Falha ao sincronizar horário global. Caindo no relógio local.', err);
+      globalOffsetRef.current = 0;
+    }
+  }, []);
+
+  const refreshSession = useCallback(async () => {
+    const current = sessionRef.current;
+    if (!current?.token || refreshingRef.current) return;
+
+    refreshingRef.current = true;
+    setRefreshing(true);
+    try {
+      const res = await fetch(`${BASE_URL}/auth/token/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${current.token}`,
+        },
+        body: '{}',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.sessionToken) {
+        throw new Error(data?.message || `Falha no refresh: ${res.status}`);
+      }
+
+      setSession((prev) => {
+        const prevUser = prev?.user ?? current.user;
+        const nextUser = (data.user as User | undefined) ?? prevUser;
+        const nextSession: NonNullable<Session> = {
+          token: String(data.sessionToken),
+          expiresAt: (data.expiresAt as string | undefined) ?? null,
+          user: nextUser,
+        };
+        sessionRef.current = nextSession;
+        if (
+          prev &&
+          prev.token === nextSession.token &&
+          prev.expiresAt === nextSession.expiresAt &&
+          prev.user === nextUser
+        ) {
+          return prev;
+        }
+        return nextSession;
+      });
+      await syncGlobalOffset();
+    } catch (error) {
+      console.warn('Erro ao renovar token:', error);
+      signOut();
+    } finally {
+      refreshingRef.current = false;
+      setRefreshing(false);
+    }
+  }, [signOut, syncGlobalOffset]);
+
+  useEffect(() => {
+    clearRefreshTimer();
+    if (!AUTO_REFRESH_ENABLED) return;
+    if (!session?.token || !session?.expiresAt) return;
+
+    let cancelled = false;
+    (async () => {
+      const expiresMs = Date.parse(session.expiresAt!);
+      if (Number.isNaN(expiresMs)) return;
+
+      await syncGlobalOffset();
+      if (cancelled) return;
+
+      const serverNow = Date.now() + globalOffsetRef.current;
+      const timeLeft = expiresMs - serverNow;
+
+      if (timeLeft <= 0) {
+        refreshSession().catch(() => {});
+        return;
+      }
+
+      const desiredDelay = expiresMs - REFRESH_THRESHOLD_MS - serverNow;
+      let delay = desiredDelay;
+
+      if (delay <= 0) {
+        const halfTimeLeft = Math.max(0, timeLeft / 2);
+        delay = Math.max(MIN_REFRESH_DELAY_MS, halfTimeLeft);
+      }
+
+      const maxSafeDelay = Math.max(1_000, timeLeft - 1_000);
+      delay = Math.min(delay, maxSafeDelay);
+
+      if (delay <= 0) {
+        refreshSession().catch(() => {});
+        return;
+      }
+
+      refreshTimerRef.current = setTimeout(() => {
+        refreshSession().catch(() => {});
+      }, delay);
+    })().catch((err) => {
+      console.warn('[Auth] Não foi possível agendar refresh automático.', err);
+    });
+
+    return () => {
+      cancelled = true;
+      clearRefreshTimer();
+    };
+  }, [session?.token, session?.expiresAt, refreshSession, clearRefreshTimer, syncGlobalOffset]);
+
   const value = useMemo(
     () => ({
       session,
-      signIn: (s: NonNullable<Session>) => {
-        setSession(s);
-      },
-      signOut: () => {
-        setSession(null);
-      },
+      signIn,
+      signOut,
       loading,
+      refreshSession,
+      refreshing,
     }),
-    [session, loading]
+    [session, signIn, signOut, loading, refreshSession, refreshing]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

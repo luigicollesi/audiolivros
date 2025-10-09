@@ -11,7 +11,7 @@ import Colors from '@/constants/Colors';
 import { Text, View } from '@/components/Themed';
 import { GENRES } from '@/constants/Genres';
 
-export type GenreOption = { id: string; name: string };
+export type GenreOption = { id: number; name: string; slug: string };
 
 type Props = {
   visible: boolean;
@@ -55,7 +55,7 @@ function GenreModalBase({
 
           <FlatList
             data={GENRES}
-            keyExtractor={(g) => g.id}
+            keyExtractor={(g) => String(g.id)}
             renderItem={({ item }) => {
               const isSelected = selected?.id === item.id;
               return (

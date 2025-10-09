@@ -16,14 +16,29 @@ const SIMULATED_ID_TOKEN = 'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJpc3MiOiJodHRw
 type SessionPayload = {
   token: string;
   expiresAt?: string | null;
-  user: { email: string; name: string | null };
+  user: {
+    email: string;
+    name: string | null;
+    phone?: string | null;
+    language?: string | null;
+    genre?: string | null;
+  };
+};
+
+type PendingPhonePayload = {
+  pendingToken: string;
+  pendingTokenExpiresAt?: string | null;
 };
 
 type Props = {
   /** Callback disparado quando a API do seu back retorna o token de sessão */
-  onSession?: (payload: SessionPayload) => void | Promise<void>; 
+  onSession?: (payload: SessionPayload) => void | Promise<void>;
+  /** Callback disparado quando o backend exige o cadastro de telefone */
+  onRequiresPhone?: (payload: PendingPhonePayload) => void | Promise<void>;
   /** Callback de erro para você exibir no UI/Redux se quiser */
   onError?: (message: string) => void;
+  /** Notifica alterações de carregamento (útil para Redux/UI externo) */
+  onLoadingChange?: (loading: boolean) => void;
   /** Desabilita o botão quando necessário */
   disabled?: boolean;
   /** Caminho do endpoint (se quiser customizar) */
@@ -36,7 +51,9 @@ type Props = {
 
 export default function GoogleLoginButton({
   onSession,
+  onRequiresPhone,
   onError,
+  onLoadingChange,
   disabled,
   apiPath = '/auth/id-token',
   provider = 'google',
@@ -47,6 +64,7 @@ export default function GoogleLoginButton({
   const handlePress = useCallback(async () => {
     if (loading || disabled) return;
     setLoading(true);
+    onLoadingChange?.(true);
     try {
       console.log('Iniciando simulação de login com Google...');
       // Fluxo ideal: app POSTa id_token para o back
@@ -56,7 +74,14 @@ export default function GoogleLoginButton({
         body: JSON.stringify({
           provider,
           id_token: SIMULATED_ID_TOKEN,
-          device: { platform: Platform.OS, app_version: '1.0.0' },
+          // inclui campos simulados para evitar erros do backend mock
+          name: 'Luigi Simulado',
+          email: 'luigi@example.com',
+          device: {
+            platform: Platform.OS,
+            app_version: '1.0.0',
+            model: Platform.constants?.model ?? Platform.OS,
+          },
         }),
       });
 
@@ -65,11 +90,27 @@ export default function GoogleLoginButton({
         throw new Error(json?.message || `Falha: ${res.status} ${res.statusText ?? ''}`);
       }
 
+      if (json?.requiresPhone) {
+        const pendingToken = String(json?.pendingToken || '');
+        if (!pendingToken) throw new Error('Resposta não contém pendingToken.');
+        await onRequiresPhone?.({
+          pendingToken,
+          pendingTokenExpiresAt: json?.pendingTokenExpiresAt ?? null,
+        });
+        return;
+      }
+
       // => seu back retorna exatamente estes campos:
       const { sessionToken, expiresAt, user } = json as {
         sessionToken: string;
         expiresAt?: string | null;
-        user: { email: string; name: string | null};
+        user: {
+          email: string;
+          name: string | null;
+          phone?: string | null;
+          language?: string | null;
+          genre?: string | null;
+        };
       };
 
       if (!sessionToken) throw new Error('Resposta não contém sessionToken.');
@@ -79,8 +120,9 @@ export default function GoogleLoginButton({
       onError?.(String(err?.message || err));
     } finally {
       setLoading(false);
+      onLoadingChange?.(false);
     }
-  }, [loading, disabled, apiPath, provider, onSession, onError]);
+  }, [loading, disabled, apiPath, provider, onSession, onRequiresPhone, onError, onLoadingChange]);
 
   return (
     <Pressable
