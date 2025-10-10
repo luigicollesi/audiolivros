@@ -16,6 +16,7 @@ import { AppleLoginButton, GoogleLoginButton, MicrosoftLoginButton } from '@/com
 import { useAuth } from '@/auth/AuthContext';
 import { RootState } from '@/store';
 import { BASE_URL } from '@/constants/API';
+import { authLogger } from '@/utils/logger';
 
 type SessionPayload = {
   token: string;
@@ -71,7 +72,10 @@ export default function LoginScreen() {
 
   const handleSession = useCallback(
     async (payload: SessionPayload) => {
-      console.log('[Auth] Sessão completa, entrando no app.');
+      authLogger.info('Sessão provider concluída', {
+        email: payload.user.email,
+        expiresAt: payload.expiresAt,
+      });
       await completeLogin(payload);
     },
     [completeLogin]
@@ -79,6 +83,9 @@ export default function LoginScreen() {
 
   const handleRequiresPhone = useCallback(
     (payload: PendingPhonePayload) => {
+      authLogger.info('Login requer verificação de telefone', {
+        pendingToken: payload.pendingToken,
+      });
       const machineCode = createMachineCode();
       dispatch({
         type: 'auth/loginRequiresPhone',
@@ -95,6 +102,7 @@ export default function LoginScreen() {
 
   const handleError = useCallback(
     (message: string) => {
+      authLogger.error('Erro nos providers de login', { message });
       dispatch({ type: 'auth/loginError', payload: message });
     },
     [dispatch]
@@ -103,6 +111,7 @@ export default function LoginScreen() {
   const handleLoadingChange = useCallback(
     (isLoading: boolean) => {
       if (isLoading) {
+        authLogger.debug('Iniciando autenticação via provider');
         dispatch({ type: 'auth/loginStart' });
       }
     },
@@ -120,6 +129,7 @@ export default function LoginScreen() {
     setLocalLoading(true);
     dispatch({ type: 'auth/loginStart' });
     try {
+      authLogger.info('Tentando login com email/senha', { email: normalizedEmail });
       const res = await fetch(`${BASE_URL}/auth/email/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -156,12 +166,14 @@ export default function LoginScreen() {
         expiresAt: data.expiresAt ?? null,
         user: data.user,
       });
+      authLogger.info('Login com email bem-sucedido', { email: normalizedEmail });
       setEmail('');
       setPassword('');
     } catch (err: any) {
       const msg = String(err?.message || err);
       setLocalError(msg);
       dispatch({ type: 'auth/loginError', payload: msg });
+      authLogger.error('Falha no login com email', { email: normalizedEmail, error: msg });
     } finally {
       setLocalLoading(false);
     }

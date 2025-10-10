@@ -1,5 +1,5 @@
-import React from 'react';
-import { ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useCallback, useMemo } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet } from 'react-native';
 import { Text, View } from '@/components/shared/Themed';
 import { HighlightedSummary } from './HighlightedSummary';
 
@@ -9,6 +9,8 @@ type Props = {
   summaryText?: string | null;
   progress: number;
   backgroundColor: string;
+  expanded: boolean;
+  onToggleExpanded: () => void;
 };
 
 export function BookSummarySection({
@@ -17,9 +19,26 @@ export function BookSummarySection({
   summaryText,
   progress,
   backgroundColor,
+  expanded,
+  onToggleExpanded,
 }: Props) {
+  const containerStyle = useMemo(
+    () => [
+      styles.container,
+      { backgroundColor },
+      expanded ? styles.containerExpanded : null,
+    ],
+    [backgroundColor, expanded],
+  );
+
+  const handlePress = useCallback(() => {
+    if (!loading && !error && summaryText) {
+      onToggleExpanded();
+    }
+  }, [loading, error, summaryText, onToggleExpanded]);
+
   return (
-    <View style={[styles.container, { backgroundColor }]}> 
+    <Pressable style={containerStyle} onPress={handlePress}>
       <Text style={styles.title}>Leitura em voz</Text>
       {loading && (
         <View style={styles.loadingRow}>
@@ -31,9 +50,16 @@ export function BookSummarySection({
         <Text style={[styles.meta, styles.error]}>{error}</Text>
       )}
       {!!summaryText && !loading && !error && (
-        <HighlightedSummary text={summaryText} progress={progress} />
+        <HighlightedSummary
+          text={summaryText}
+          progress={progress}
+          variant={expanded ? 'expanded' : 'default'}
+        />
       )}
-    </View>
+      <Text style={styles.hint}>
+        {expanded ? 'Toque para recolher' : 'Toque para expandir e facilitar a leitura'}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -44,8 +70,12 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 8,
   },
+  containerExpanded: {
+    minHeight: 240,
+  },
   title: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
   meta: { fontSize: 14, opacity: 0.8 },
   error: { color: 'tomato' },
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  hint: { fontSize: 12, opacity: 0.6, textAlign: 'center' },
 });

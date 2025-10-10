@@ -16,6 +16,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { BASE_URL } from '@/constants/API';
 import { RootState } from '@/store';
 import { useAuth } from '@/auth/AuthContext';
+import { authLogger } from '@/utils/logger';
 
 type SessionPayload = {
   token: string;
@@ -102,6 +103,9 @@ export default function CodeScreen() {
     setSubmitting(true);
 
     try {
+      authLogger.info('Validando código de telefone', {
+        pendingToken: pending.pendingToken,
+      });
       const res = await fetch(`${BASE_URL}/auth/phone/verify-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -130,8 +134,15 @@ export default function CodeScreen() {
         expiresAt,
         user,
       });
+      authLogger.info('Telefone confirmado, login concluído', {
+        email: user.email,
+      });
     } catch (err: any) {
-      setError(String(err?.message || err));
+      const message = String(err?.message || err);
+      setError(message);
+      authLogger.error('Falha ao validar código de telefone', {
+        error: message,
+      });
     } finally {
       setSubmitting(false);
     }

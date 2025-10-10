@@ -1,5 +1,11 @@
 // app/(private)/index.tsx
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -9,6 +15,8 @@ import {
   StyleSheet,
   Platform,
   Pressable,
+  TextInput,
+  Keyboard,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Text, View } from '@/components/shared/Themed';
@@ -19,15 +27,16 @@ import { BASE_URL } from '@/constants/API';
 import { useAuthedFetch } from '@/auth/useAuthedFetch';
 import { useSafeInsets } from '@/hooks/useSafeInsets';
 import { useAuth } from '@/auth/AuthContext';
+import { booksLogger } from '@/utils/logger';
 
 const PAGE_SIZE = 10;
-const LANGUAGE_ID = 'pt-BR';
+const DEFAULT_LANGUAGE = 'pt-BR';
 
 export default function TabOneScreen() {
   const router = useRouter();
   const insets = useSafeInsets();
   const { fetchJSON } = useAuthedFetch();
-  const { refreshSession } = useAuth();
+  const { session, refreshSession } = useAuth();
 
   const [total, setTotal] = useState<number | null>(null);
   const [pages, setPages] = useState<Record<number, BookItem[]>>({});
@@ -37,11 +46,22 @@ export default function TabOneScreen() {
   const [selectedGenre, setSelectedGenre] = useState<GenreOption | null>(null);
   const [showGenreModal, setShowGenreModal] = useState(false);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const [searchInput, setSearchInput] = useState('');
+  const [searchApplied, setSearchApplied] = useState('');
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   const screenWidth = Dimensions.get('window').width;
   const flatRef = useRef<FlatList<number>>(null);
   const initializedRef = useRef(false);
   const prefetchedPagesRef = useRef<Set<number>>(new Set());
+  const searchInputRef = useRef<TextInput>(null);
+
+  const languagePreference = session?.user?.language;
+  const languageId = useMemo(() => {
+    const normalized =
+      typeof languagePreference === 'string' ? languagePreference.trim() : '';
+    return normalized || DEFAULT_LANGUAGE;
+  }, [languagePreference]);
 
   const maxPageIndex = useMemo(() => {
     if (total == null) return 0;
@@ -68,13 +88,53 @@ export default function TabOneScreen() {
       const start = pageIndex * PAGE_SIZE;
       const end = start + (PAGE_SIZE - 1);
 
-      const genreId = selectedGenre?.id ?? null;
-      const base = selectedGenre ? `${BASE_URL}/books/genre` : `${BASE_URL}/books`;
-      const genreParam = selectedGenre ? `&genreId=${encodeURIComponent(String(genreId))}` : '';
-      const url = `${base}?start=${start}&end=${end}&languageId=${encodeURIComponent(LANGUAGE_ID)}${genreParam}`;
+      let url: string;
+
+      if (searchApplied) {
+        const params = new URLSearchParams({
+          start: String(start),
+          end: String(end),
+          languageId,
+          text: searchApplied,
+        });
+        url = `${BASE_URL}/books/search?${params.toString()}`;
+      } else {
+        const genreId = selectedGenre?.id ?? null;
+        if (genreId != null) {
+          const params = new URLSearchParams({
+            start: String(start),
+            end: String(end),
+            languageId,
+            genreId: String(genreId),
+          });
+          url = `${BASE_URL}/books/genre?${params.toString()}`;
+        } else {
+          const params = new URLSearchParams({
+            start: String(start),
+            end: String(end),
+            languageId,
+          });
+          url = `${BASE_URL}/books?${params.toString()}`;
+        }
+      }
 
       try {
+        booksLogger.info('Carregando página de livros', {
+          pageIndex,
+          start,
+          end,
+          search: searchApplied || null,
+          genreId: selectedGenre?.id ?? null,
+          languageId,
+        });
         const data = await fetchJSON<BooksResponse>(url);
+        const normalizedItems = (data.items ?? []).map((item) => ({
+          ...item,
+          author:
+            typeof item.author === 'string' && item.author.trim()
+              ? item.author
+              : 'Autor desconhecido',
+        }));
 
         if (typeof data.total === 'number') {
           setTotal(data.total);
@@ -84,16 +144,29 @@ export default function TabOneScreen() {
 
         setPages(prev => {
           prefetchedPagesRef.current.add(pageIndex);
-          return { ...prev, [pageIndex]: data.items || [] };
+          return { ...prev, [pageIndex]: normalizedItems };
         });
-      } catch (e: any) {
+        booksLogger.debug('Página de livros carregada', {
+          pageIndex,
+          itemCount: normalizedItems.length,
+          total: typeof data.total === 'number' ? data.total : undefined,
+        });
+      } catch (err) {
         // Se deu 5xx, trate como “página vazia”
-        const msg = String(e?.message ?? e);
+        const msg = err instanceof Error ? err.message : String(err);
         if (/HTTP 5\d\d/.test(msg)) {
           setPages(prev => ({ ...prev, [pageIndex]: [] }));
           setTotal(old => (old == null ? 0 : old));
+          booksLogger.warn('Erro 5xx ao carregar página, preenchendo vazia', {
+            pageIndex,
+            error: msg,
+          });
         } else {
           setError(`Falha ao carregar página ${pageIndex}: ${msg}`);
+          booksLogger.error('Falha ao carregar página de livros', {
+            pageIndex,
+            error: err,
+          });
         }
       } finally {
         setLoadingPages(prev => {
@@ -103,7 +176,7 @@ export default function TabOneScreen() {
         });
       }
     },
-    [loadingPages, pages, selectedGenre, fetchJSON]
+    [loadingPages, pages, selectedGenre, fetchJSON, languageId, searchApplied]
   );
 
   const prefetchNext = useCallback(
@@ -129,7 +202,7 @@ export default function TabOneScreen() {
       prefetchNext(0);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGenre]);
+  }, [selectedGenre, languageId, searchApplied]);
 
   useFocusEffect(
     useCallback(() => {
@@ -166,6 +239,7 @@ export default function TabOneScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
+      booksLogger.debug('Atualizando grid de livros via pull-to-refresh');
       await fetchPage(currentPageIndex, true);
       prefetchNext(currentPageIndex);
     } finally {
@@ -182,10 +256,11 @@ export default function TabOneScreen() {
           author: b.author,
           year: String(b.year),
           cover_url: b.cover_url,
+          language: languageId,
         },
       });
     },
-    [router]
+    [router, languageId]
   );
 
   const renderPage = useCallback(
@@ -215,12 +290,66 @@ export default function TabOneScreen() {
     [pages, loadingPages, screenWidth, handlePressBook]
   );
 
+  const dismissKeyboard = useCallback(() => {
+    searchInputRef.current?.blur();
+    Keyboard.dismiss();
+  }, []);
+
+  const applySearch = useCallback(() => {
+    const trimmed = searchInput.trim();
+    if (trimmed === searchApplied) {
+      dismissKeyboard();
+      return;
+    }
+    if (trimmed) {
+      setSelectedGenre(null);
+    }
+    setSearchApplied(trimmed);
+    dismissKeyboard();
+    booksLogger.info('Aplicando busca na grade de livros', {
+      text: trimmed,
+    });
+  }, [searchInput, searchApplied, dismissKeyboard]);
+
+  const clearSearch = useCallback(() => {
+    if (!searchApplied && !searchInput) return;
+    setSearchInput('');
+    if (searchApplied) {
+      setSearchApplied('');
+    }
+    dismissKeyboard();
+    booksLogger.info('Busca de livros limpa');
+  }, [searchApplied, searchInput, dismissKeyboard]);
+
+  const onChangeSearch = useCallback((value: string) => {
+    setSearchInput(value);
+  }, []);
+
+  const searchActive = searchApplied.length > 0;
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', () =>
+      setKeyboardVisible(true),
+    );
+    const hideSub = Keyboard.addListener('keyboardDidHide', () =>
+      setKeyboardVisible(false),
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   return (
     <View style={[screenStyles.container, { paddingTop: insets.top + 6 }]}>
       {/* Cabeçalho */}
       <View style={screenStyles.header}>
         <Text style={screenStyles.title}>
-          {selectedGenre ? selectedGenre.name : 'Mais recentes'}
+          {searchActive
+            ? `Resultado: "${searchApplied}"`
+            : selectedGenre
+            ? selectedGenre.name
+            : 'Mais recentes'}
         </Text>
         <Text style={screenStyles.pageCount}>
           {maxPageIndex > 0 ? `${currentPageIndex + 1} / ${maxPageIndex + 1}` : ''}
@@ -228,6 +357,41 @@ export default function TabOneScreen() {
         <Pressable onPress={() => setShowGenreModal(true)} style={screenStyles.filterButton}>
           <Text style={screenStyles.filterButtonText}>Filtrar</Text>
         </Pressable>
+      </View>
+
+      <View style={screenStyles.searchRow}>
+        <TextInput
+          ref={searchInputRef}
+          placeholder="Buscar por título ou autor"
+          value={searchInput}
+          onChangeText={onChangeSearch}
+          style={screenStyles.searchInput}
+          returnKeyType="search"
+          blurOnSubmit
+          onSubmitEditing={applySearch}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        <Pressable
+          style={[
+            screenStyles.searchButton,
+            (!searchInput.trim() || searchInput.trim() === searchApplied) && screenStyles.searchButtonDisabled,
+          ]}
+          onPress={applySearch}
+          disabled={!searchInput.trim() || searchInput.trim() === searchApplied}
+        >
+          <Text style={screenStyles.searchButtonText}>Buscar</Text>
+        </Pressable>
+        {searchActive && (
+          <Pressable style={screenStyles.clearButton} onPress={clearSearch}>
+            <Text style={screenStyles.clearButtonText}>Limpar</Text>
+          </Pressable>
+        )}
+        {keyboardVisible && (
+          <Pressable style={screenStyles.keyboardButton} onPress={dismissKeyboard}>
+            <Text style={screenStyles.keyboardButtonText}>Fechar</Text>
+          </Pressable>
+        )}
       </View>
 
       {/* Silencia mensagens de erro para filtros sem resultado suportado */}
@@ -258,7 +422,15 @@ export default function TabOneScreen() {
       <GenreModal
         visible={showGenreModal}
         selected={selectedGenre ?? undefined}
-        onSelect={(g) => setSelectedGenre(g)}
+        onSelect={(g) => {
+          setSearchApplied('');
+          setSearchInput('');
+          setSelectedGenre(g);
+          booksLogger.info('Filtro de gênero atualizado', {
+            genreId: g?.id ?? null,
+            name: g?.name ?? null,
+          });
+        }}
         onClose={() => setShowGenreModal(false)}
         allowClear
         title="Selecione um gênero"
@@ -294,6 +466,43 @@ const screenStyles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
   },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#cbd5f5',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 6,
+    backgroundColor: '#fff',
+  },
+  searchButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#2563eb',
+  },
+  searchButtonDisabled: { opacity: 0.6 },
+  searchButtonText: { color: '#fff', fontWeight: '600' },
+  clearButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#d1d5db',
+  },
+  clearButtonText: { color: '#2563eb', fontWeight: '600' },
+  keyboardButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  keyboardButtonText: { color: '#6b7280', fontWeight: '600' },
   errorBox: {
     marginHorizontal: 16,
     marginBottom: 8,

@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { BASE_URL } from '@/constants/API';
 import { CodeVerificationView } from '@/components/auth/CodeVerificationView';
+import { authLogger } from '@/utils/logger';
 
 const CODE_LENGTH = 6;
 const RESEND_COOLDOWN_SECONDS = 45;
@@ -48,6 +49,7 @@ export default function EmailCodeScreen() {
     setError(null);
     setLoading(true);
     try {
+      authLogger.info('Verificando código de email', { email, pendingToken });
       const res = await fetch(`${BASE_URL}/auth/email/verify-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -62,8 +64,11 @@ export default function EmailCodeScreen() {
         pathname: '/email-password',
         params: { registerToken: data.registerToken, email },
       });
+      authLogger.info('Código de email validado', { email });
     } catch (err: any) {
-      setError(String(err?.message || err));
+      const message = String(err?.message || err);
+      setError(message);
+      authLogger.error('Falha ao validar código de email', { email, error: message });
     } finally {
       setLoading(false);
     }
@@ -74,6 +79,7 @@ export default function EmailCodeScreen() {
     setError(null);
     setResendLoading(true);
     try {
+      authLogger.info('Solicitando reenvio de código de email', { email });
       const res = await fetch(`${BASE_URL}/auth/email/request-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -87,8 +93,11 @@ export default function EmailCodeScreen() {
       setCode('');
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
       router.setParams?.({ pendingToken: data.token, email });
+      authLogger.info('Código de email reenviado', { email });
     } catch (err: any) {
-      setError(String(err?.message || err));
+      const message = String(err?.message || err);
+      setError(message);
+      authLogger.error('Falha ao reenviar código de email', { email, error: message });
     } finally {
       setResendLoading(false);
     }

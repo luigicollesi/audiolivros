@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { SummaryResponse } from './types';
+import { summariesLogger } from '@/utils/logger';
 
 type FetchJSON = <T>(
   input: RequestInfo | URL,
@@ -26,15 +27,23 @@ export function useBookSummary(url: string | null | undefined, fetchJSON: FetchJ
         setError(null);
         setSummary(null);
 
+        summariesLogger.info('Solicitando resumo do livro', { url });
         const data = await fetchJSON<SummaryResponse>(url);
         if (cancelled) return;
         if (!data?.audio_url) {
           throw new Error('Resposta sem "audio_url".');
         }
-        setSummary(data);
+        setSummary({
+          audio_url: data.audio_url,
+          summary: data.summary,
+          favorite: Boolean(data.favorite),
+        });
+        summariesLogger.info('Resumo carregado com sucesso', { url, favorite: Boolean(data.favorite) });
       } catch (err: any) {
         if (cancelled) return;
-        setError(err?.message ?? 'Falha ao carregar resumo');
+        const message = err?.message ?? 'Falha ao carregar resumo';
+        summariesLogger.error('Erro ao carregar resumo', { url, error: message });
+        setError(message);
       } finally {
         if (!cancelled) setLoading(false);
       }

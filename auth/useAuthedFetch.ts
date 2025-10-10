@@ -1,6 +1,7 @@
 // src/auth/useAuthedFetch.ts
 import { useCallback } from 'react';
 import { useAuth } from '@/auth/AuthContext';
+import { authLogger } from '@/utils/logger';
 
 type FetchJSONOptions = RequestInit & { expect?: 'json' | 'text' | 'void' };
 
@@ -11,12 +12,15 @@ export function useAuthedFetch() {
   const authedFetch = useCallback(
     async (input: RequestInfo | URL, init?: RequestInit) => {
       const headers = new Headers(init?.headers || {});
-      if (token) headers.set('authorization', `Bearer ${String(token).trim()}`);
-      console.log(`Bearer ${String(token).trim()}`);
+      if (token) {
+        const bearer = `Bearer ${String(token).trim()}`;
+        headers.set('authorization', bearer);
+        authLogger.debug('Requisição autenticada', { url: String(input) });
+      }
 
       const res = await fetch(input, { ...init, headers });
       if (res.status === 401) {
-        console.warn('401 (não autenticado) em', String(input));
+        authLogger.warn('Token inválido ou expirado detectado', { url: String(input) });
         signOut();
       }
       return res;

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View as RNView } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { Text, View } from '@/components/shared/Themed';
@@ -19,6 +19,9 @@ export type AudioBarProps = {
   position: number;
   duration: number;
   formatTime: (value?: number) => string;
+  playbackRate: number;
+  availableRates: number[];
+  onSelectRate: (rate: number) => void;
 };
 
 export const AUDIO_BAR_HEIGHT = 120;
@@ -39,18 +42,57 @@ export function AudioBar({
   position,
   duration,
   formatTime,
+  playbackRate,
+  availableRates,
+  onSelectRate,
 }: AudioBarProps) {
+  const [ratePickerVisible, setRatePickerVisible] = useState(false);
+
+  const rateButtons = useMemo(
+    () =>
+      availableRates.map((rate) => {
+        const selected = Math.abs(rate - playbackRate) < 0.001;
+        return (
+          <Pressable
+            key={rate}
+            onPress={() => {
+              onSelectRate(rate);
+              setRatePickerVisible(false);
+            }}
+            style={[styles.rateOption, selected && styles.rateOptionSelected]}
+          >
+            <Text
+              style={[
+                styles.rateOptionText,
+                selected && styles.rateOptionTextSelected,
+              ]}
+            >
+              {rate.toFixed(1)}x
+            </Text>
+          </Pressable>
+        );
+      }),
+    [availableRates, playbackRate, onSelectRate],
+  );
+
   return (
-    <View
-      style={[
-        styles.audioBar,
-        {
-          paddingBottom: 10 + bottomInset,
-          backgroundColor,
-          borderColor,
-        },
-      ]}
-    >
+    <>
+      {ratePickerVisible && (
+        <Pressable
+          style={[StyleSheet.absoluteFillObject, styles.rateOverlay]}
+          onPress={() => setRatePickerVisible(false)}
+        />
+      )}
+      <View
+        style={[
+          styles.audioBar,
+          {
+            paddingBottom: 10 + bottomInset,
+            backgroundColor,
+            borderColor,
+          },
+        ]}
+      >
       <Pressable
         onPress={onTogglePlay}
         disabled={!audioReady || !!audioError || audioLoading}
@@ -89,6 +131,21 @@ export function AudioBar({
               <Text style={styles.timer}>{formatTime(duration)}</Text>
             </View>
             <View style={styles.controlsRow}>
+              <View style={styles.rateWrapper}>
+                <Pressable
+                  onPress={() => setRatePickerVisible((v) => !v)}
+                  style={styles.rateSelectorBtn}
+                >
+                  <Text style={styles.rateSelectorText}>{playbackRate.toFixed(1)}x</Text>
+                </Pressable>
+                {ratePickerVisible && (
+                  <RNView
+                    style={styles.ratePopover}
+                  >
+                    <RNView style={styles.rateOptionsColumn}>{rateButtons}</RNView>
+                  </RNView>
+                )}
+              </View>
               <Pressable
                 onPress={onSkipBackward}
                 disabled={!audioReady || audioLoading}
@@ -108,6 +165,7 @@ export function AudioBar({
         )}
       </View>
     </View>
+    </>
   );
 }
 
@@ -155,6 +213,43 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 4,
+    gap: 8,
+  },
+  rateWrapper: {
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rateSelectorBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#2563eb',
+    backgroundColor: 'rgba(37,99,235,0.1)',
+  },
+  rateSelectorText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2563eb',
+  },
+  ratePopover: {
+    position: 'absolute',
+    alignItems: 'stretch',
+    alignSelf: 'center',
+    bottom: 0,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+    zIndex: 30,
   },
   smallBtn: {
     paddingHorizontal: 10,
@@ -164,4 +259,35 @@ const styles = StyleSheet.create({
     borderColor: '#d1d5db',
   },
   smallBtnText: { fontSize: 12, fontWeight: '600' },
+  rateOverlay: {
+    backgroundColor: 'transparent',
+  },
+  rateOptionsColumn: {
+    gap: 8,
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
+  rateOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#d1d5db',
+    alignItems: 'center',
+    minWidth: 72,
+    minHeight: 36,
+    justifyContent: 'center',
+  },
+  rateOptionSelected: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
+  },
+  rateOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  rateOptionTextSelected: {
+    color: '#fff',
+  },
 });

@@ -7,6 +7,7 @@ import { useDispatch } from 'react-redux';
 import { BASE_URL } from '@/constants/API';
 import { TextField } from '@/components/shared/TextField';
 import { AuthCard } from '@/components/auth/AuthCard';
+import { authLogger } from '@/utils/logger';
 
 const MIN_PASSWORD_LEN = 8;
 const createMachineCode = () => `device-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -45,6 +46,7 @@ export default function ForgotPasswordScreen() {
     setError(null);
     setLoading(true);
     try {
+      authLogger.info('Salvando nova senha', { email, resetToken });
       const res = await fetch(`${BASE_URL}/auth/email/reset/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -68,11 +70,15 @@ export default function ForgotPasswordScreen() {
             machineCode,
           },
         });
+        authLogger.info('Senha redefinida, aguardando telefone', { email });
       }
 
       router.replace('/(auth)/login');
+      authLogger.info('Senha redefinida com sucesso', { email });
     } catch (err: any) {
-      setError(String(err?.message || err));
+      const message = String(err?.message || err);
+      setError(message);
+      authLogger.error('Falha ao redefinir senha', { email, error: message });
     } finally {
       setLoading(false);
     }

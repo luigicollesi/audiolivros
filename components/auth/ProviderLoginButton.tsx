@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { BASE_URL } from '@/constants/API';
+import { authLogger } from '@/utils/logger';
 
 export type SessionPayload = {
   token: string;
@@ -67,7 +68,9 @@ export function createMockProviderButton(config: ProviderStaticConfig) {
       setLoading(true);
       onLoadingChange?.(true);
       try {
-        console.log(`Iniciando simulação de login com provider ${config.provider}`);
+        authLogger.info('Iniciando login via provider', {
+          provider: config.provider,
+        });
         const res = await fetch(`${BASE_URL}${apiPath}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -102,6 +105,9 @@ export function createMockProviderButton(config: ProviderStaticConfig) {
             pendingToken,
             pendingTokenExpiresAt: json?.pendingTokenExpiresAt ?? null,
           });
+          authLogger.info('Provider login requer verificação de telefone', {
+            provider: config.provider,
+          });
           return;
         }
 
@@ -114,8 +120,17 @@ export function createMockProviderButton(config: ProviderStaticConfig) {
         if (!sessionToken) throw new Error('Resposta não contém sessionToken.');
 
         await onSession?.({ token: sessionToken, expiresAt, user });
+        authLogger.info('Login via provider bem-sucedido', {
+          provider: config.provider,
+          email: user?.email,
+        });
       } catch (err: any) {
-        onError?.(String(err?.message || err));
+        const message = String(err?.message || err);
+        authLogger.error('Erro no login via provider', {
+          provider: config.provider,
+          error: message,
+        });
+        onError?.(message);
       } finally {
         setLoading(false);
         onLoadingChange?.(false);

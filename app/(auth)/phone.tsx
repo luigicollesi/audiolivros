@@ -1,5 +1,5 @@
 // app/(auth)/phone.tsx
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -13,8 +13,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
+import { useAuth } from '@/auth/AuthContext';
 import { BASE_URL } from '@/constants/API';
 import { RootState } from '@/store';
+import { authLogger } from '@/utils/logger';
 
 const DEFAULT_LANGUAGE = 'pt-BR';
 
@@ -24,6 +26,7 @@ const sanitizeDigits = (value: string, max: number) =>
 export default function PhoneScreen() {
   const dispatch = useDispatch();
   const router = useRouter();
+  const { session } = useAuth();
 
   const pending = useSelector((s: RootState) => s.auth?.pendingPhone);
   const globalError = useSelector((s: RootState) => s.auth?.error ?? null);
@@ -35,6 +38,14 @@ export default function PhoneScreen() {
   const [info, setInfo] = useState<string | null>(
     pending ? 'Precisamos confirmar seu telefone para liberar o acesso.' : null
   );
+
+  const language = useMemo(() => {
+    const preference =
+      typeof session?.user?.language === 'string'
+        ? session.user.language.trim()
+        : '';
+    return preference || DEFAULT_LANGUAGE;
+  }, [session?.user?.language]);
 
   useEffect(() => {
     if (!pending) {
@@ -83,6 +94,9 @@ export default function PhoneScreen() {
     const fullPhone = `+55${sanitizedDDD}${digits}`;
 
     try {
+      authLogger.info('Solicitando código de telefone', {
+        phone: fullPhone,
+      });
       const res = await fetch(`${BASE_URL}/auth/phone/request-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -90,7 +104,7 @@ export default function PhoneScreen() {
           pendingToken: pending.pendingToken,
           machineCode: pending.machineCode,
           phone: fullPhone,
-          language: DEFAULT_LANGUAGE,
+          language,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -103,13 +117,21 @@ export default function PhoneScreen() {
         payload: { phone: fullPhone, ddd: sanitizedDDD },
       });
       setInfo('Enviamos um código de 5 dígitos para o número informado.');
+      authLogger.info('Código de telefone enviado com sucesso', {
+        phone: fullPhone,
+      });
       router.replace('/(auth)/code');
     } catch (err: any) {
-      setError(String(err?.message || err));
+      const message = String(err?.message || err);
+      setError(message);
+      authLogger.error('Falha ao solicitar código de telefone', {
+        phone: fullPhone,
+        error: message,
+      });
     } finally {
       setSubmitting(false);
     }
-  }, [pending?.pendingToken, pending?.machineCode, ddd, number, dispatch, router]);
+  }, [pending?.pendingToken, pending?.machineCode, ddd, number, dispatch, router, language]);
 
   return (
     <SafeAreaView style={styles.safe}>

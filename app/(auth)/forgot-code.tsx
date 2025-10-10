@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { BASE_URL } from '@/constants/API';
 import { CodeVerificationView } from '@/components/auth/CodeVerificationView';
+import { authLogger } from '@/utils/logger';
 
 const CODE_LENGTH = 6;
 const RESEND_COOLDOWN_SECONDS = 45;
@@ -44,6 +45,7 @@ export default function ForgotCodeScreen() {
     setError(null);
     setLoading(true);
     try {
+      authLogger.info('Verificando código de redefinição', { email, pendingToken });
       const res = await fetch(`${BASE_URL}/auth/email/reset/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -58,8 +60,11 @@ export default function ForgotCodeScreen() {
         pathname: '/forgot-password',
         params: { resetToken: data.resetToken, email },
       });
+      authLogger.info('Código de redefinição validado', { email });
     } catch (err: any) {
-      setError(String(err?.message || err));
+      const message = String(err?.message || err);
+      setError(message);
+      authLogger.error('Falha ao validar código de redefinição', { email, error: message });
     } finally {
       setLoading(false);
     }
@@ -70,6 +75,7 @@ export default function ForgotCodeScreen() {
     setError(null);
     setResendLoading(true);
     try {
+      authLogger.info('Solicitando reenvio de código de redefinição', { email });
       const res = await fetch(`${BASE_URL}/auth/email/reset/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -83,8 +89,11 @@ export default function ForgotCodeScreen() {
       setCode('');
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
       router.setParams?.({ pendingToken: data.token, email });
+      authLogger.info('Código de redefinição reenviado', { email });
     } catch (err: any) {
-      setError(String(err?.message || err));
+      const message = String(err?.message || err);
+      setError(message);
+      authLogger.error('Falha ao reenviar código de redefinição', { email, error: message });
     } finally {
       setResendLoading(false);
     }

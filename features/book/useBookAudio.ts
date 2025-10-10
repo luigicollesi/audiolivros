@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-audio';
 import * as FileSystem from 'expo-file-system';
 import { BASE_URL } from '@/constants/API';
+import { audioLogger } from '@/utils/logger';
 import { AuthedFetch } from './types';
 
 export type BookAudioControls = {
@@ -17,6 +18,9 @@ export type BookAudioControls = {
   duration: number;
   progressRatio: number;
   formatTime: (sec?: number) => string;
+  playbackRate: number;
+  availableRates: number[];
+  setPlaybackRate: (rate: number) => void;
 };
 
 type UseBookAudioOptions = {
@@ -24,6 +28,8 @@ type UseBookAudioOptions = {
   token: string;
   authedFetch: AuthedFetch;
 };
+
+const PLAYBACK_RATES: ReadonlyArray<number> = [2, 1.5, 1, 0.5];
 
 export function useBookAudio({ audioPath, token, authedFetch }: UseBookAudioOptions): BookAudioControls {
   const player = useAudioPlayer(undefined, { updateInterval: 200 });
@@ -33,6 +39,7 @@ export function useBookAudio({ audioPath, token, authedFetch }: UseBookAudioOpti
   const [audioErr, setAudioErr] = useState<string | null>(null);
   const [audioReady, setAudioReady] = useState(false);
   const [seeking, setSeeking] = useState(false);
+  const [playbackRate, setPlaybackRateState] = useState<number>(1);
 
   const fetchWithTimeout = useCallback(
     async (input: RequestInfo | URL, init?: RequestInit, ms = 12000) => {
@@ -49,8 +56,10 @@ export function useBookAudio({ audioPath, token, authedFetch }: UseBookAudioOpti
 
   useEffect(() => {
     let active = true;
+    setPlaybackRateState(1);
     (async () => {
       if (!audioPath) {
+        audioLogger.debug('Nenhum áudio associado ao livro atual');
         setAudioReady(false);
         setAudioErr(null);
         return;
@@ -69,6 +78,7 @@ export function useBookAudio({ audioPath, token, authedFetch }: UseBookAudioOpti
         Range: 'bytes=0-0',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       };
+      audioLogger.info('Carregando áudio do livro', { audioPath });
       const ok = await (async () => {
         try {
           const r = await fetchWithTimeout(candidate, { headers: probeHeaders }, 8000);
@@ -82,6 +92,7 @@ export function useBookAudio({ audioPath, token, authedFetch }: UseBookAudioOpti
         if (!active) return;
         setAudioErr('Áudio não encontrado ou acesso negado em /audio.');
         setAudioLoading(false);
+        audioLogger.warn('Áudio não encontrado no endpoint primário', { audioPath: candidate });
         return;
       }
 
@@ -90,12 +101,17 @@ export function useBookAudio({ audioPath, token, authedFetch }: UseBookAudioOpti
           uri: candidate,
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
+        player.shouldCorrectPitch = true;
+        player.setPlaybackRate(1);
         if (!active) return;
         setAudioReady(true);
         setAudioLoading(false);
         return;
-      } catch {
-        // continua para o fallback
+      } catch (err) {
+        audioLogger.warn('Falha ao iniciar streaming direto, tentando fallback', {
+          audioPath: candidate,
+          error: err,
+        });
       }
 
       try {
@@ -105,10 +121,17 @@ export function useBookAudio({ audioPath, token, authedFetch }: UseBookAudioOpti
         });
         await player.replace({ uri: dl.uri });
         if (!active) return;
+        player.shouldCorrectPitch = true;
+        player.setPlaybackRate(1);
         setAudioReady(true);
+        audioLogger.info('Áudio carregado via fallback local', { uri: dl.uri });
       } catch (err: any) {
         if (!active) return;
         setAudioErr(err?.message ?? 'Falha ao carregar áudio');
+        audioLogger.error('Erro ao carregar áudio do livro', {
+          audioPath: candidate,
+          error: err,
+        });
       } finally {
         if (active) setAudioLoading(false);
       }
@@ -118,6 +141,18 @@ export function useBookAudio({ audioPath, token, authedFetch }: UseBookAudioOpti
       active = false;
     };
   }, [audioPath, token, player, fetchWithTimeout]);
+
+  useEffect(() => {
+    try {
+      player.shouldCorrectPitch = true;
+      player.setPlaybackRate(playbackRate);
+      audioLogger.debug('Velocidade de reprodução atualizada', {
+        rate: playbackRate,
+      });
+    } catch (err) {
+      audioLogger.warn('Não foi possível aplicar velocidade de reprodução', err);
+    }
+  }, [player, playbackRate]);
 
   const isPlaying = !!status?.playing;
   const position = status?.currentTime ?? 0;
@@ -164,6 +199,13 @@ export function useBookAudio({ audioPath, token, authedFetch }: UseBookAudioOpti
     return `${m}:${String(r).padStart(2, '0')}`;
   }, []);
 
+  const setPlaybackRate = useCallback((rate: number) => {
+    const allowed = PLAYBACK_RATES.includes(rate) ? rate : 1;
+    setPlaybackRateState(allowed);
+  }, []);
+
+  const availableRates = useMemo(() => [...PLAYBACK_RATES], []);
+
   useEffect(() => {
     if (!audioReady || audioLoading || audioErr) return;
     if (!status?.playing && !seeking && status?.duration) {
@@ -187,5 +229,8 @@ export function useBookAudio({ audioPath, token, authedFetch }: UseBookAudioOpti
     duration,
     progressRatio,
     formatTime,
+    playbackRate,
+    availableRates,
+    setPlaybackRate,
   };
 }

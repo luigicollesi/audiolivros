@@ -12,6 +12,7 @@ import { AuthProvider, useAuth } from '@/auth/AuthContext';
 
 import { Provider } from 'react-redux';
 import { store } from '@/store';
+import { configureLogger } from '@/utils/logger';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -26,6 +27,15 @@ export default function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
   });
+  useEffect(() => {
+    configureLogger({
+      AUTH: { levels: { debug: false } },
+      BOOKS: { levels: { debug: false } },
+      FAVORITES: { levels: { debug: false } },
+      SUMMARIES: { levels: { debug: false } },
+      AUDIO: { levels: { debug: false } },
+    });
+  }, []);
   useEffect(() => { if (error) throw error; }, [error]);
   useEffect(() => { if (loaded) SplashScreen.hideAsync(); }, [loaded]);
   if (!loaded) return null;

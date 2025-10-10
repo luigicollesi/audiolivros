@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { BASE_URL } from '@/constants/API';
 import { TextField } from '@/components/shared/TextField';
 import { AuthCard } from '@/components/auth/AuthCard';
+import { authLogger } from '@/utils/logger';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -28,6 +29,7 @@ export default function EmailRegistrationScreen() {
     setError(null);
     setLoading(true);
     try {
+      authLogger.info('Solicitando código de cadastro por email', { email: normalizedEmail });
       const res = await fetch(`${BASE_URL}/auth/email/request-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -45,8 +47,14 @@ export default function EmailRegistrationScreen() {
           email: normalizedEmail,
         },
       });
+      authLogger.info('Código de cadastro enviado', { email: normalizedEmail });
     } catch (err: any) {
-      setError(String(err?.message || err));
+      const message = String(err?.message || err);
+      setError(message);
+      authLogger.error('Falha ao solicitar código de cadastro', {
+        email: normalizedEmail,
+        error: message,
+      });
     } finally {
       setLoading(false);
     }

@@ -9,6 +9,7 @@ import React, {
   useState,
 } from 'react';
 import { BASE_URL } from '@/constants/API';
+import { authLogger } from '@/utils/logger';
 
 type User = {
   email: string;
@@ -26,6 +27,9 @@ type AuthContextType = {
   loading: boolean;
   refreshSession: () => Promise<void>;
   refreshing: boolean;
+  favoritesDirty: boolean;
+  markFavoritesDirty: () => void;
+  acknowledgeFavorites: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -93,6 +97,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const [session, setSession] = useState<Session>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [favoritesDirty, setFavoritesDirty] = useState(true);
 
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshingRef = useRef(false);
@@ -124,12 +129,19 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const signIn = useCallback((s: NonNullable<Session>) => {
     sessionRef.current = s;
     setSession(s);
+    setFavoritesDirty(true);
+    authLogger.info('Sessão autenticada', {
+      email: s.user.email,
+      expiresAt: s.expiresAt,
+    });
   }, []);
 
   const signOut = useCallback(() => {
     clearRefreshTimer();
     sessionRef.current = null;
     setSession(null);
+    setFavoritesDirty(true);
+    authLogger.info('Sessão encerrada');
   }, [clearRefreshTimer]);
 
   const syncGlobalOffset = useCallback(async () => {
@@ -137,7 +149,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       const globalNow = await fetchGlobalTimestamp();
       globalOffsetRef.current = globalNow - Date.now();
     } catch (err) {
-      console.warn('[Auth] Falha ao sincronizar horário global. Caindo no relógio local.', err);
+      authLogger.warn('Falha ao sincronizar horário global. Caindo no relógio local.', err);
       globalOffsetRef.current = 0;
     }
   }, []);
@@ -183,13 +195,21 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       });
       await syncGlobalOffset();
     } catch (error) {
-      console.warn('Erro ao renovar token:', error);
+      authLogger.error('Erro ao renovar token', error);
       signOut();
     } finally {
       refreshingRef.current = false;
       setRefreshing(false);
     }
   }, [signOut, syncGlobalOffset]);
+
+  const markFavoritesDirty = useCallback(() => {
+    setFavoritesDirty(true);
+  }, []);
+
+  const acknowledgeFavorites = useCallback(() => {
+    setFavoritesDirty(false);
+  }, []);
 
   useEffect(() => {
     clearRefreshTimer();
@@ -232,7 +252,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         refreshSession().catch(() => {});
       }, delay);
     })().catch((err) => {
-      console.warn('[Auth] Não foi possível agendar refresh automático.', err);
+      authLogger.warn('Não foi possível agendar refresh automático.', err);
     });
 
     return () => {
@@ -249,8 +269,21 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       loading,
       refreshSession,
       refreshing,
+      favoritesDirty,
+      markFavoritesDirty,
+      acknowledgeFavorites,
     }),
-    [session, signIn, signOut, loading, refreshSession, refreshing]
+    [
+      session,
+      signIn,
+      signOut,
+      loading,
+      refreshSession,
+      refreshing,
+      favoritesDirty,
+      markFavoritesDirty,
+      acknowledgeFavorites,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

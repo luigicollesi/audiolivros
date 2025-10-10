@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { BASE_URL } from '@/constants/API';
 import { TextField } from '@/components/shared/TextField';
 import { AuthCard } from '@/components/auth/AuthCard';
+import { authLogger } from '@/utils/logger';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -28,6 +29,7 @@ export default function ForgotEmailScreen() {
     setError(null);
     setLoading(true);
     try {
+      authLogger.info('Solicitando código de redefinição de senha', { email: normalizedEmail });
       const res = await fetch(`${BASE_URL}/auth/email/reset/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -42,8 +44,14 @@ export default function ForgotEmailScreen() {
         pathname: '/forgot-code',
         params: { pendingToken: data.token, email: normalizedEmail },
       });
+      authLogger.info('Código de redefinição enviado', { email: normalizedEmail });
     } catch (err: any) {
-      setError(String(err?.message || err));
+      const message = String(err?.message || err);
+      setError(message);
+      authLogger.error('Falha ao solicitar código de redefinição', {
+        email: normalizedEmail,
+        error: message,
+      });
     } finally {
       setLoading(false);
     }

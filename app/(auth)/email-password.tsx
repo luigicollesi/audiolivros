@@ -7,6 +7,7 @@ import { useDispatch } from 'react-redux';
 import { BASE_URL } from '@/constants/API';
 import { TextField } from '@/components/shared/TextField';
 import { AuthCard } from '@/components/auth/AuthCard';
+import { authLogger } from '@/utils/logger';
 
 const MIN_PASSWORD_LEN = 8;
 
@@ -52,6 +53,10 @@ export default function EmailPasswordScreen() {
     setError(null);
     setLoading(true);
     try {
+      authLogger.info('Concluindo cadastro por email', {
+        email: normalizedEmail,
+        registerToken: normalizedRegisterToken,
+      });
       const res = await fetch(`${BASE_URL}/auth/email/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -75,11 +80,17 @@ export default function EmailPasswordScreen() {
           machineCode,
         },
       });
+      authLogger.info('Cadastro concluído, aguardando telefone', { email: normalizedEmail });
       router.replace({
         pathname: '/phone',
       });
     } catch (err: any) {
-      setError(String(err?.message || err));
+      const message = String(err?.message || err);
+      setError(message);
+      authLogger.error('Erro ao concluir cadastro por email', {
+        email: normalizedEmail,
+        error: message,
+      });
     } finally {
       setLoading(false);
     }
