@@ -6,6 +6,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { BASE_URL } from '@/constants/API';
 import { CodeVerificationView } from '@/components/auth/CodeVerificationView';
 import { authLogger } from '@/utils/logger';
+import Colors from '@/constants/Colors';
+import { useColorScheme } from '@/components/shared/useColorScheme';
 
 const CODE_LENGTH = 6;
 const RESEND_COOLDOWN_SECONDS = 45;
@@ -13,6 +15,9 @@ const RESEND_COOLDOWN_SECONDS = 45;
 export default function EmailCodeScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ pendingToken?: string; email?: string }>();
+  const scheme = useColorScheme() ?? 'light';
+  const palette = Colors[scheme];
+  const styles = useMemo(() => createStyles(palette), [palette]);
 
   const [pendingToken, setPendingToken] = useState<string | null>(() =>
     typeof params.pendingToken === 'string' ? params.pendingToken : null
@@ -129,13 +134,16 @@ export default function EmailCodeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  container: {
-    flex: 1,
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f9fafb',
-  },
-});
+type Palette = typeof Colors.light;
+
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    container: {
+      flex: 1,
+      padding: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+    },
+  });

@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { BASE_URL } from '@/constants/API';
 import { authLogger } from '@/utils/logger';
+import Colors from '@/constants/Colors';
+import { useColorScheme } from '@/components/shared/useColorScheme';
 
 export type SessionPayload = {
   token: string;
@@ -61,6 +63,8 @@ export function createMockProviderButton(config: ProviderStaticConfig) {
     onLoadingChange,
   }: ProviderButtonBaseProps) {
     const [loading, setLoading] = useState(false);
+    const scheme = useColorScheme() ?? 'light';
+    const palette = Colors[scheme];
     const buttonLabel = label ?? config.defaultLabel;
 
     const handlePress = useCallback(async () => {
@@ -147,14 +151,14 @@ export function createMockProviderButton(config: ProviderStaticConfig) {
 
     return (
       <Pressable
-        style={[styles.btn, (disabled || loading) && styles.btnDisabled]}
+        style={[styles.btn, { backgroundColor: palette.bookCard, borderColor: palette.tabIconDefault }, (disabled || loading) && styles.btnDisabled]}
         onPress={handlePress}
         accessibilityRole="button"
         accessibilityLabel={buttonLabel}
       >
         <View style={styles.row}>
-          <Text style={styles.label}>{buttonLabel}</Text>
-          {loading && <ActivityIndicator />}
+          <Text style={[styles.label, { color: palette.text }]}>{buttonLabel}</Text>
+          {loading && <ActivityIndicator color={palette.tint} />}
         </View>
       </Pressable>
     );
@@ -172,11 +176,11 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
-    backgroundColor: '#fff',
+    backgroundColor: 'transparent',
   },
   btnDisabled: { opacity: 0.6 },
   row: { flexDirection: 'row', alignItems: 'center' },

@@ -8,6 +8,8 @@ import { BASE_URL } from '@/constants/API';
 import { TextField } from '@/components/shared/TextField';
 import { AuthCard } from '@/components/auth/AuthCard';
 import { authLogger } from '@/utils/logger';
+import Colors from '@/constants/Colors';
+import { useColorScheme } from '@/components/shared/useColorScheme';
 
 const MIN_PASSWORD_LEN = 8;
 const createMachineCode = () => `device-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -16,6 +18,11 @@ export default function ForgotPasswordScreen() {
   const router = useRouter();
   const dispatch = useDispatch();
   const params = useLocalSearchParams<{ resetToken?: string; email?: string }>();
+  const scheme = useColorScheme() ?? 'light';
+  const palette = Colors[scheme];
+  const isDark = scheme === 'dark';
+  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
+  const primaryTextColor = isDark ? '#000' : '#fff';
 
   const [resetToken] = useState<string | null>(() =>
     typeof params.resetToken === 'string' ? params.resetToken : null
@@ -118,7 +125,11 @@ export default function ForgotPasswordScreen() {
             onPress={submit}
             disabled={!passwordsMatch || loading}
           >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Salvar e continuar</Text>}
+            {loading ? (
+              <ActivityIndicator color={primaryTextColor} />
+            ) : (
+              <Text style={styles.primaryBtnText}>Salvar e continuar</Text>
+            )}
           </Pressable>
 
           <Pressable style={styles.linkBtn} onPress={() => router.back()}>
@@ -130,27 +141,30 @@ export default function ForgotPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  container: {
-    flex: 1,
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f9fafb',
-  },
-  hint: { fontSize: 12, color: '#6b7280', textAlign: 'center' },
-  primaryBtn: {
-    marginTop: 4,
-    height: 48,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2563eb',
-  },
-  primaryBtnDisabled: { opacity: 0.6 },
-  primaryBtnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  linkBtn: { paddingVertical: 10, alignItems: 'center' },
-  linkText: { color: '#2563eb', fontWeight: '600' },
-  error: { color: '#ef4444', fontSize: 13, textAlign: 'center' },
-});
+type Palette = typeof Colors.light;
+
+const createStyles = (colors: Palette, isDark: boolean) =>
+  StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    container: {
+      flex: 1,
+      padding: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+    },
+    hint: { fontSize: 12, color: colors.text, opacity: 0.7, textAlign: 'center' },
+    primaryBtn: {
+      marginTop: 4,
+      height: 48,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.tint,
+    },
+    primaryBtnDisabled: { opacity: 0.6 },
+    primaryBtnText: { color: isDark ? '#000' : '#fff', fontWeight: '600', fontSize: 16 },
+    linkBtn: { paddingVertical: 10, alignItems: 'center' },
+    linkText: { color: colors.tint, fontWeight: '600' },
+    error: { color: '#ef4444', fontSize: 13, textAlign: 'center' },
+  });

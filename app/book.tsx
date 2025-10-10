@@ -218,7 +218,7 @@ export default function BookScreen() {
       <AudioBar
         bottomInset={insets.bottom}
         backgroundColor={theme.bookCard}
-        borderColor={scheme === 'dark' ? '#333' : '#e5e5e5'}
+        borderColor={scheme === 'dark' ? '#333' : theme.tabIconDefault}
         audioReady={audioReady}
         audioLoading={audioLoading}
         audioError={audioErr}

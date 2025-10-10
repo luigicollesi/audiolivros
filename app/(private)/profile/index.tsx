@@ -24,7 +24,9 @@ const LANGUAGE_OPTIONS: Array<{ id: 'pt-BR' | 'en-US'; label: string }> = [
 export default function ProfileScreen() {
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
-  const theme = Colors[scheme];
+  const palette = Colors[scheme];
+  const isDark = scheme === 'dark';
+  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
   const { session, signOut, refreshSession } = useAuth();
   const { authedFetch } = useAuthedFetch();
 
@@ -86,9 +88,9 @@ export default function ProfileScreen() {
   const name = user?.name?.trim() || user?.email || 'Olá!';
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={[styles.card, { backgroundColor: theme.bookCard }]}>
+        <View style={styles.card}>
           <Text style={styles.title}>{name}</Text>
 
           <View style={styles.infoGroup}>
@@ -110,7 +112,7 @@ export default function ProfileScreen() {
                 disabled={languageSubmitting}
               >
                 {languageSubmitting ? (
-                  <ActivityIndicator />
+                  <ActivityIndicator color={palette.tint} />
                 ) : (
                   <Text style={styles.languageButtonText}>{languageLabel}</Text>
                 )}
@@ -122,7 +124,7 @@ export default function ProfileScreen() {
                     style={[StyleSheet.absoluteFillObject, styles.popoverOverlay]}
                     onPress={() => setLanguagePopoverVisible(false)}
                   />
-                  <View style={[styles.popover, { backgroundColor: theme.background }]}>
+                  <View style={styles.popover}>
                     {LANGUAGE_OPTIONS.map((option) => {
                       const selected = option.id === user?.language;
                       return (
@@ -160,10 +162,10 @@ export default function ProfileScreen() {
         </View>
 
         <Pressable
-          style={[styles.signOutButton, { borderColor: theme.tint }]}
+          style={styles.signOutButton}
           onPress={handleSignOut}
         >
-          <Text style={[styles.signOutText, { color: theme.tint }]}>Sair</Text>
+          <Text style={styles.signOutText}>Sair</Text>
         </Pressable>
 
         <Pressable
@@ -177,129 +179,146 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  content: {
-    padding: 24,
-    gap: 16,
-  },
-  card: {
-    borderRadius: 16,
-    padding: 20,
-    gap: 18,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-  },
-  infoGroup: {
-    gap: 4,
-  },
-  infoLabel: {
-    fontSize: 12,
-    textTransform: 'uppercase',
-    opacity: 0.6,
-    letterSpacing: 0.6,
-  },
-  infoValue: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  languageWrapper: {
-    position: 'relative',
-    alignSelf: 'flex-start',
-  },
-  languageButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#2563eb',
-    backgroundColor: 'rgba(37,99,235,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  languageButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#2563eb',
-  },
-  popoverOverlay: {
-    position: 'absolute',
-    backgroundColor: 'transparent',
-    top: -2000,
-    left: -2000,
-    right: -2000,
-    bottom: -2000,
-  },
-  popover: {
-    position: 'absolute',
-    top: 50,
-    alignSelf: 'center',
-    minWidth: 220,
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#d1d5db',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
-    gap: 8,
-    zIndex: 50,
-  },
-  popoverItem: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#d1d5db',
-  },
-  popoverItemSelected: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
-  },
-  popoverItemText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  popoverItemTextSelected: {
-    color: '#fff',
-  },
-  primaryButton: {
-    marginTop: 6,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#2563eb',
-    alignItems: 'center',
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  signOutButton: {
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: 'center',
-  },
-  signOutText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  deleteButton: {
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: '#ef4444',
-    alignItems: 'center',
-  },
-  deleteButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#fff',
-  },
-});
+type Palette = typeof Colors.light;
+
+const createStyles = (colors: Palette, isDark: boolean) => {
+  const accent = colors.tint;
+  const primaryTextColor = isDark ? '#000' : '#fff';
+  const languageBackground = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(47,149,220,0.12)';
+
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    content: {
+      padding: 24,
+      gap: 16,
+    },
+    card: {
+      borderRadius: 16,
+      padding: 20,
+      gap: 18,
+      backgroundColor: colors.bookCard,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.tabIconDefault,
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    infoGroup: {
+      gap: 4,
+    },
+    infoLabel: {
+      fontSize: 12,
+      textTransform: 'uppercase',
+      opacity: 0.6,
+      letterSpacing: 0.6,
+      color: colors.text,
+    },
+    infoValue: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    languageWrapper: {
+      position: 'relative',
+      alignSelf: 'flex-start',
+    },
+    languageButton: {
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 10,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: accent,
+      backgroundColor: languageBackground,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    languageButtonText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: accent,
+    },
+    popoverOverlay: {
+      position: 'absolute',
+      backgroundColor: 'transparent',
+      top: -2000,
+      left: -2000,
+      right: -2000,
+      bottom: -2000,
+    },
+    popover: {
+      position: 'absolute',
+      top: 50,
+      alignSelf: 'center',
+      minWidth: 220,
+      borderRadius: 12,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.tabIconDefault,
+      backgroundColor: colors.background,
+      shadowColor: '#000',
+      shadowOpacity: 0.15,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 6,
+      gap: 8,
+      zIndex: 50,
+    },
+    popoverItem: {
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.tabIconDefault,
+    },
+    popoverItemSelected: {
+      backgroundColor: accent,
+      borderColor: accent,
+    },
+    popoverItemText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    popoverItemTextSelected: {
+      color: primaryTextColor,
+    },
+    primaryButton: {
+      marginTop: 6,
+      paddingVertical: 14,
+      borderRadius: 12,
+      backgroundColor: accent,
+      alignItems: 'center',
+    },
+    primaryButtonText: {
+      color: primaryTextColor,
+      fontWeight: '700',
+      fontSize: 16,
+    },
+    signOutButton: {
+      paddingVertical: 12,
+      borderRadius: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: accent,
+      alignItems: 'center',
+    },
+    signOutText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: accent,
+    },
+    deleteButton: {
+      paddingVertical: 12,
+      borderRadius: 12,
+      backgroundColor: '#ef4444',
+      alignItems: 'center',
+    },
+    deleteButtonText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: '#fff',
+    },
+  });
+};

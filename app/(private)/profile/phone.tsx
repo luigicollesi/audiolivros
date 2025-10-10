@@ -51,7 +51,11 @@ const parseExistingPhone = (raw: string | null | undefined) => {
 export default function PhoneUpdateScreen() {
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
-  const theme = Colors[scheme];
+  const palette = Colors[scheme];
+  const isDark = scheme === 'dark';
+  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
+  const placeholderColor = isDark ? '#9ca3af' : '#6b7280';
+  const primaryTextColor = isDark ? '#000' : '#fff';
   const { session, refreshSession } = useAuth();
   const { authedFetch } = useAuthedFetch();
 
@@ -87,7 +91,6 @@ export default function PhoneUpdateScreen() {
       setFormError('Informe o telefone no formato XXXXX-XXXX.');
       return;
     }
-
     if (cooldown > 0) {
       setFormError('Aguarde antes de solicitar um novo código.');
       return;
@@ -119,7 +122,7 @@ export default function PhoneUpdateScreen() {
     } finally {
       setLoading(false);
     }
-  }, [authedFetch, ddd, localNumber]);
+  }, [authedFetch, ddd, localNumber, cooldown]);
 
   useEffect(() => {
     if (cooldown <= 0) return undefined;
@@ -173,16 +176,16 @@ export default function PhoneUpdateScreen() {
   }, [loading]);
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={[styles.content, { backgroundColor: theme.background }]}
+          contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={[styles.card, { backgroundColor: theme.bookCard }]}>
+          <View style={styles.card}>
             <Text style={styles.title}>
               {stage === 'form' ? 'Atualizar telefone' : 'Confirmar código'}
             </Text>
@@ -206,7 +209,7 @@ export default function PhoneUpdateScreen() {
                     keyboardType="number-pad"
                     maxLength={2}
                     placeholder="DD"
-                    placeholderTextColor="#9ca3af"
+                    placeholderTextColor={placeholderColor}
                   />
                   <TextInput
                     style={[styles.phoneInput, styles.textInput]}
@@ -218,18 +221,18 @@ export default function PhoneUpdateScreen() {
                     keyboardType="number-pad"
                     maxLength={10}
                     placeholder="XXXXX-XXXX"
-                    placeholderTextColor="#9ca3af"
+                    placeholderTextColor={placeholderColor}
                   />
                 </View>
                 {formError && <Text style={styles.error}>{formError}</Text>}
                 {info && <Text style={styles.info}>{info}</Text>}
                 <Pressable
-                  style={[styles.primaryButton, loading && styles.disabled]}
+                  style={[styles.primaryButton, (loading || cooldown > 0) && styles.disabled]}
                   onPress={handleRequestCode}
                   disabled={loading || cooldown > 0}
                 >
                   {loading ? (
-                    <ActivityIndicator color="#fff" />
+                    <ActivityIndicator color={primaryTextColor} />
                   ) : (
                     <Text style={styles.primaryButtonText}>
                       {cooldown > 0 ? `Reenviar em ${cooldown}s` : 'Enviar código'}
@@ -281,92 +284,103 @@ export default function PhoneUpdateScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  flex: { flex: 1 },
-  content: {
-    flexGrow: 1,
-    padding: 24,
-    justifyContent: 'center',
-    gap: 16,
-  },
-  card: {
-    padding: 22,
-    borderRadius: 16,
-    gap: 16,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  description: {
-    fontSize: 14,
-    textAlign: 'center',
-    opacity: 0.75,
-  },
-  phoneRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  countryCode: {
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#e5e7eb',
-  },
-  countryCodeText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  textInput: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: '#111827',
-  },
-  dddInput: {
-    width: 70,
-    textAlign: 'center',
-  },
-  phoneInput: {
-    flex: 1,
-  },
-  error: {
-    color: '#ef4444',
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  info: {
-    color: '#2563eb',
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  primaryButton: {
-    borderRadius: 12,
-    backgroundColor: '#2563eb',
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  disabled: {
-    opacity: 0.6,
-  },
-  linkButton: {
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  linkText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#2563eb',
-  },
-});
+type Palette = typeof Colors.light;
+
+const createStyles = (colors: Palette, isDark: boolean) =>
+  StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    flex: { flex: 1 },
+    content: {
+      flexGrow: 1,
+      padding: 24,
+      justifyContent: 'center',
+      gap: 16,
+      backgroundColor: colors.background,
+    },
+    card: {
+      padding: 22,
+      borderRadius: 16,
+      gap: 16,
+      backgroundColor: colors.bookCard,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.tabIconDefault,
+    },
+    title: {
+      fontSize: 22,
+      fontWeight: '800',
+      textAlign: 'center',
+      color: colors.text,
+    },
+    description: {
+      fontSize: 14,
+      textAlign: 'center',
+      color: colors.text,
+      opacity: 0.75,
+    },
+    phoneRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    countryCode: {
+      paddingHorizontal: 12,
+      paddingVertical: 14,
+      borderRadius: 12,
+      backgroundColor: colors.bookCard,
+    },
+    countryCodeText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    textInput: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.tabIconDefault,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 14,
+      fontSize: 16,
+      color: colors.text,
+      backgroundColor: isDark ? colors.bookCard : colors.background,
+    },
+    dddInput: {
+      width: 70,
+      textAlign: 'center',
+    },
+    phoneInput: {
+      flex: 1,
+    },
+    error: {
+      color: '#ef4444',
+      fontSize: 13,
+      textAlign: 'center',
+    },
+    info: {
+      color: colors.tint,
+      fontSize: 13,
+      textAlign: 'center',
+    },
+    primaryButton: {
+      borderRadius: 12,
+      backgroundColor: colors.tint,
+      paddingVertical: 14,
+      alignItems: 'center',
+    },
+    primaryButtonText: {
+      color: isDark ? '#000' : '#fff',
+      fontWeight: '700',
+      fontSize: 16,
+    },
+    disabled: {
+      opacity: 0.6,
+    },
+    linkButton: {
+      alignItems: 'center',
+      paddingVertical: 8,
+    },
+    linkText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.tint,
+    },
+  });

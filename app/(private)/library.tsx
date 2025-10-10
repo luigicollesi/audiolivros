@@ -16,6 +16,8 @@ import { useAuthedFetch } from '@/auth/useAuthedFetch';
 import { useSafeInsets } from '@/hooks/useSafeInsets';
 import { useAuth } from '@/auth/AuthContext';
 import { favoritesLogger } from '@/utils/logger';
+import Colors from '@/constants/Colors';
+import { useColorScheme } from '@/components/shared/useColorScheme';
 
 const PAGE_SIZE = 10;
 
@@ -30,6 +32,8 @@ export default function LibraryScreen() {
     acknowledgeFavorites,
     markFavoritesDirty,
   } = useAuth();
+  const scheme = useColorScheme() ?? 'light';
+  const palette = Colors[scheme];
 
   const [total, setTotal] = useState<number | null>(null);
   const [pages, setPages] = useState<Record<number, BookItem[]>>({});
@@ -276,7 +280,9 @@ export default function LibraryScreen() {
   const singlePageItems = pages[0] ?? (emptyState ? [] : undefined);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 6 }]}> 
+    <View
+      style={[styles.container, { paddingTop: insets.top + 6, backgroundColor: palette.background }]}
+    > 
       <View style={styles.header}>
         <Text style={styles.title}>Favoritos</Text>
         <Text style={styles.pageCount}>
@@ -311,13 +317,15 @@ export default function LibraryScreen() {
         </View>
       ) : (
         <View style={styles.pageLoading}>
-          <ActivityIndicator />
+          <ActivityIndicator color={palette.tint} />
           <Text>Carregando favoritos...</Text>
         </View>
       )}
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>
+      <View
+        style={[styles.footer, { borderTopColor: palette.tabIconDefault, paddingBottom: insets.bottom }]}
+      >
+        <Text style={[styles.footerText, { color: palette.text }]}>
           {total == null ? '...' : `${total} livros favoritados`}
         </Text>
       </View>
@@ -353,7 +361,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     alignItems: 'center',
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#ddd',
     paddingVertical: 8,
   },
   footerText: { fontSize: 12, opacity: 0.7 },

@@ -28,6 +28,8 @@ import { useAuthedFetch } from '@/auth/useAuthedFetch';
 import { useSafeInsets } from '@/hooks/useSafeInsets';
 import { useAuth } from '@/auth/AuthContext';
 import { booksLogger } from '@/utils/logger';
+import Colors from '@/constants/Colors';
+import { useColorScheme } from '@/components/shared/useColorScheme';
 
 const PAGE_SIZE = 10;
 const DEFAULT_LANGUAGE = 'pt-BR';
@@ -37,6 +39,12 @@ export default function TabOneScreen() {
   const insets = useSafeInsets();
   const { fetchJSON } = useAuthedFetch();
   const { session, refreshSession } = useAuth();
+  const scheme = useColorScheme() ?? 'light';
+  const palette = Colors[scheme];
+  const isDark = scheme === 'dark';
+  const accent = palette.tint;
+  const placeholderColor = isDark ? '#9ca3af' : '#6b7280';
+  const primaryTextColor = isDark ? '#000' : '#fff';
 
   const [total, setTotal] = useState<number | null>(null);
   const [pages, setPages] = useState<Record<number, BookItem[]>>({});
@@ -272,7 +280,7 @@ export default function TabOneScreen() {
         <View style={[screenStyles.page, { width: screenWidth }]}>
           {isLoading && (
             <View style={screenStyles.pageLoading}>
-              <ActivityIndicator />
+              <ActivityIndicator color={palette.tint} />
               <Text>Carregando...</Text>
             </View>
           )}
@@ -341,7 +349,12 @@ export default function TabOneScreen() {
   }, []);
 
   return (
-    <View style={[screenStyles.container, { paddingTop: insets.top + 6 }]}>
+    <View
+      style={[
+        screenStyles.container,
+        { paddingTop: insets.top + 6, backgroundColor: palette.background },
+      ]}
+    >
       {/* Cabeçalho */}
       <View style={screenStyles.header}>
         <Text style={screenStyles.title}>
@@ -354,8 +367,13 @@ export default function TabOneScreen() {
         <Text style={screenStyles.pageCount}>
           {maxPageIndex > 0 ? `${currentPageIndex + 1} / ${maxPageIndex + 1}` : ''}
         </Text>
-        <Pressable onPress={() => setShowGenreModal(true)} style={screenStyles.filterButton}>
-          <Text style={screenStyles.filterButtonText}>Filtrar</Text>
+        <Pressable
+          onPress={() => setShowGenreModal(true)}
+          style={[screenStyles.filterButton, { backgroundColor: accent }]}
+        >
+          <Text style={[screenStyles.filterButtonText, { color: primaryTextColor }]}>
+            Filtrar
+          </Text>
         </Pressable>
       </View>
 
@@ -365,31 +383,47 @@ export default function TabOneScreen() {
           placeholder="Buscar por título ou autor"
           value={searchInput}
           onChangeText={onChangeSearch}
-          style={screenStyles.searchInput}
+          style={[
+            screenStyles.searchInput,
+            {
+              borderColor: palette.tabIconDefault,
+              backgroundColor: isDark ? palette.bookCard : palette.background,
+              color: palette.text,
+            },
+          ]}
           returnKeyType="search"
           blurOnSubmit
           onSubmitEditing={applySearch}
           autoCapitalize="none"
           autoCorrect={false}
+          placeholderTextColor={placeholderColor}
         />
         <Pressable
           style={[
             screenStyles.searchButton,
+            { backgroundColor: accent },
             (!searchInput.trim() || searchInput.trim() === searchApplied) && screenStyles.searchButtonDisabled,
           ]}
           onPress={applySearch}
           disabled={!searchInput.trim() || searchInput.trim() === searchApplied}
         >
-          <Text style={screenStyles.searchButtonText}>Buscar</Text>
+          <Text style={[screenStyles.searchButtonText, { color: primaryTextColor }]}>
+            Buscar
+          </Text>
         </Pressable>
         {searchActive && (
-          <Pressable style={screenStyles.clearButton} onPress={clearSearch}>
-            <Text style={screenStyles.clearButtonText}>Limpar</Text>
+          <Pressable
+            style={[screenStyles.clearButton, { borderColor: palette.tabIconDefault }]}
+            onPress={clearSearch}
+          >
+            <Text style={[screenStyles.clearButtonText, { color: accent }]}>Limpar</Text>
           </Pressable>
         )}
         {keyboardVisible && (
           <Pressable style={screenStyles.keyboardButton} onPress={dismissKeyboard}>
-            <Text style={screenStyles.keyboardButtonText}>Fechar</Text>
+            <Text style={[screenStyles.keyboardButtonText, { color: palette.text, opacity: 0.7 }]}>
+              Fechar
+            </Text>
           </Pressable>
         )}
       </View>
@@ -413,8 +447,13 @@ export default function TabOneScreen() {
         nestedScrollEnabled
       />
 
-      <View style={screenStyles.footer}>
-        <Text style={screenStyles.footerText}>
+      <View
+        style={[
+          screenStyles.footer,
+          { borderTopColor: palette.tabIconDefault, paddingBottom: insets.bottom },
+        ]}
+      >
+        <Text style={[screenStyles.footerText, { color: palette.text }]}>
           {total == null ? '...' : `${total} livros no total`}
         </Text>
       </View>
@@ -459,11 +498,9 @@ const screenStyles = StyleSheet.create({
   filterButton: {
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: '#2f95dc',
     borderRadius: 8,
   },
   filterButtonText: {
-    color: '#fff',
     fontWeight: '600',
   },
   searchRow: {
@@ -476,33 +513,32 @@ const screenStyles = StyleSheet.create({
   searchInput: {
     flex: 1,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#cbd5f5',
+    borderColor: 'transparent',
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: Platform.OS === 'ios' ? 10 : 6,
-    backgroundColor: '#fff',
+    backgroundColor: 'transparent',
   },
   searchButton: {
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: '#2563eb',
   },
   searchButtonDisabled: { opacity: 0.6 },
-  searchButtonText: { color: '#fff', fontWeight: '600' },
+  searchButtonText: { fontWeight: '600' },
   clearButton: {
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#d1d5db',
+    borderColor: 'transparent',
   },
-  clearButtonText: { color: '#2563eb', fontWeight: '600' },
+  clearButtonText: { fontWeight: '600' },
   keyboardButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  keyboardButtonText: { color: '#6b7280', fontWeight: '600' },
+  keyboardButtonText: { fontWeight: '600' },
   errorBox: {
     marginHorizontal: 16,
     marginBottom: 8,
@@ -522,7 +558,6 @@ const screenStyles = StyleSheet.create({
     paddingHorizontal: 10,
     alignItems: 'center',
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#ddd',
   },
   footerText: { fontSize: 12, opacity: 0.7 },
 });

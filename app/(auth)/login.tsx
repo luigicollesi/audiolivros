@@ -17,6 +17,8 @@ import { useAuth } from '@/auth/AuthContext';
 import { RootState } from '@/store';
 import { BASE_URL } from '@/constants/API';
 import { authLogger } from '@/utils/logger';
+import Colors from '@/constants/Colors';
+import { useColorScheme } from '@/components/shared/useColorScheme';
 
 type SessionPayload = {
   token: string;
@@ -42,6 +44,12 @@ export default function LoginScreen() {
   const dispatch = useDispatch();
   const router = useRouter();
   const { signIn } = useAuth();
+  const scheme = useColorScheme() ?? 'light';
+  const palette = Colors[scheme];
+  const isDark = scheme === 'dark';
+  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
+  const placeholderColor = isDark ? '#9ca3af' : '#6b7280';
+  const primaryTextColor = isDark ? '#000' : '#fff';
 
   const loading = useSelector((s: RootState) => Boolean(s.auth?.loading));
   const error = useSelector((s: RootState) => s.auth?.error ?? null);
@@ -193,6 +201,7 @@ export default function LoginScreen() {
             <TextInput
               style={styles.input}
               placeholder="email@exemplo.com"
+              placeholderTextColor={placeholderColor}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -205,6 +214,7 @@ export default function LoginScreen() {
           <TextInput
             style={styles.input}
             placeholder="Senha"
+            placeholderTextColor={placeholderColor}
             secureTextEntry
             value={password}
             onChangeText={(value) => {
@@ -222,7 +232,7 @@ export default function LoginScreen() {
               disabled={!canSubmitEmail || localLoading}
             >
               {localLoading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={primaryTextColor} />
               ) : (
                 <Text style={styles.primaryBtnText}>Entrar</Text>
               )}
@@ -270,7 +280,7 @@ export default function LoginScreen() {
 
           {loading && (
             <View style={styles.loadingRow}>
-              <ActivityIndicator />
+              <ActivityIndicator color={palette.tint} />
               <Text style={styles.loadingText}>Autenticando…</Text>
             </View>
           )}
@@ -288,68 +298,80 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  container: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
-  header: { width: '100%', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 28, fontWeight: '800' },
-  subtitle: { fontSize: 14, opacity: 0.7, textAlign: 'center' },
-  body: { width: '100%', gap: 16 as any, alignItems: 'center' },
-  formCard: {
-    width: '100%',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    padding: 16,
-    gap: 12 as any,
-  },
-  formTitle: { fontSize: 16, fontWeight: '700', textAlign: 'center' },
-  input: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 15,
-  },
-  linkRight: { alignSelf: 'flex-end' },
-  linkRightText: { color: '#2563eb', fontSize: 12, fontWeight: '600' },
-  primaryBtn: {
-    marginTop: 4,
-    height: 46,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2563eb',
-  },
-  primaryBtnDisabled: { opacity: 0.6 },
-  primaryBtnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  secondaryBtn: {
-    marginTop: 4,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  secondaryBtnText: {
-    fontSize: 13,
-    color: '#2563eb',
-    fontWeight: '600',
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    width: '100%',
-    paddingHorizontal: 16,
-  },
-  providers: {
-    width: '100%',
-    gap: 12,
-  },
-  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: '#d1d5db' },
-  dividerText: { fontSize: 12, color: '#6b7280' },
-  loadingRow: { alignItems: 'center', marginTop: 8 },
-  loadingText: { marginTop: 6, fontSize: 12, opacity: 0.7 },
-  footer: { width: '100%', alignItems: 'center', marginTop: 24 },
-  footerText: { fontSize: 12, opacity: 0.6, textAlign: 'center' },
-  error: { color: '#ef4444', fontSize: 12, textAlign: 'center', marginTop: 8 },
-});
+type Palette = typeof Colors.light;
+
+const createStyles = (colors: Palette, isDark: boolean) =>
+  StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    container: {
+      flex: 1,
+      padding: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+    },
+    header: { width: '100%', alignItems: 'center', marginBottom: 16, gap: 8 },
+    title: { fontSize: 28, fontWeight: '800', color: colors.text },
+    subtitle: { fontSize: 14, color: colors.text, opacity: 0.7, textAlign: 'center' },
+    body: { width: '100%', gap: 16, alignItems: 'center' },
+    formCard: {
+      width: '100%',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.tabIconDefault,
+      borderRadius: 12,
+      padding: 16,
+      gap: 12,
+      backgroundColor: colors.bookCard,
+    },
+    formTitle: { fontSize: 16, fontWeight: '700', textAlign: 'center', color: colors.text },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.tabIconDefault,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      fontSize: 15,
+      color: colors.text,
+      backgroundColor: colors.background,
+    },
+    linkRight: { alignSelf: 'flex-end' },
+    linkRightText: { color: colors.tint, fontSize: 12, fontWeight: '600' },
+    primaryBtn: {
+      marginTop: 4,
+      height: 46,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.tint,
+    },
+    primaryBtnDisabled: { opacity: 0.6 },
+    primaryBtnText: { color: isDark ? '#000' : '#fff', fontWeight: '600', fontSize: 16 },
+    secondaryBtn: {
+      marginTop: 4,
+      paddingVertical: 10,
+      alignItems: 'center',
+    },
+    secondaryBtnText: {
+      fontSize: 13,
+      color: colors.tint,
+      fontWeight: '600',
+    },
+    divider: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      width: '100%',
+      paddingHorizontal: 16,
+    },
+    providers: {
+      width: '100%',
+      gap: 12,
+    },
+    dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.tabIconDefault },
+    dividerText: { fontSize: 12, color: colors.text, opacity: 0.6 },
+    loadingRow: { alignItems: 'center', marginTop: 8 },
+    loadingText: { marginTop: 6, fontSize: 12, color: colors.text, opacity: 0.7 },
+    footer: { width: '100%', alignItems: 'center', marginTop: 24 },
+    footerText: { fontSize: 12, color: colors.text, opacity: 0.6, textAlign: 'center' },
+    error: { color: '#ef4444', fontSize: 12, textAlign: 'center', marginTop: 8 },
+  });

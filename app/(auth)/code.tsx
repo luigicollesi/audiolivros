@@ -1,22 +1,17 @@
 // app/(auth)/code.tsx
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
+
+import Colors from '@/constants/Colors';
+import { useColorScheme } from '@/components/shared/useColorScheme';
 import { BASE_URL } from '@/constants/API';
 import { RootState } from '@/store';
 import { useAuth } from '@/auth/AuthContext';
 import { authLogger } from '@/utils/logger';
+import { CodeVerificationView } from '@/components/auth/CodeVerificationView';
 
 type SessionPayload = {
   token: string;
@@ -38,14 +33,14 @@ export default function CodeScreen() {
   const dispatch = useDispatch();
   const router = useRouter();
   const { signIn } = useAuth();
-
   const pending = useSelector((s: RootState) => s.auth?.pendingPhone);
+  const scheme = useColorScheme() ?? 'light';
+  const palette = Colors[scheme];
+  const styles = useMemo(() => createStyles(palette), [palette]);
 
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (!pending?.pendingToken || !pending?.machineCode) {
@@ -57,24 +52,6 @@ export default function CodeScreen() {
     return null;
   }
 
-  const digits = useMemo(() => {
-    const arr = new Array(CODE_LENGTH).fill('');
-    const safe = sanitizeDigits(code).slice(0, CODE_LENGTH);
-    for (let i = 0; i < safe.length; i += 1) {
-      arr[i] = safe[i];
-    }
-    return arr;
-  }, [code]);
-
-  const onChangeText = useCallback((value: string) => {
-    const sanitized = sanitizeDigits(value).slice(0, CODE_LENGTH);
-    setCode(sanitized);
-  }, []);
-
-  const focusInput = useCallback(() => {
-    inputRef.current?.focus();
-  }, []);
-
   const completeLogin = useCallback(
     async (payload: SessionPayload) => {
       dispatch({ type: 'auth/loginSuccess', payload });
@@ -84,7 +61,7 @@ export default function CodeScreen() {
         user: payload.user,
       });
     },
-    [dispatch, signIn]
+    [dispatch, signIn],
   );
 
   const handleSubmit = useCallback(async () => {
@@ -94,7 +71,8 @@ export default function CodeScreen() {
       return;
     }
 
-    if (code.length !== CODE_LENGTH) {
+    const sanitized = sanitizeDigits(code).slice(0, CODE_LENGTH);
+    if (sanitized.length !== CODE_LENGTH) {
       setError('Digite os 5 dígitos do código.');
       return;
     }
@@ -112,7 +90,7 @@ export default function CodeScreen() {
         body: JSON.stringify({
           pendingToken: pending.pendingToken,
           machineCode: pending.machineCode,
-          code,
+          code: sanitized,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -172,86 +150,46 @@ export default function CodeScreen() {
         </Text>
         {phoneLabel && <Text style={styles.info}>{phoneLabel}</Text>}
 
-        <Pressable style={styles.codeBoxes} onPress={focusInput}>
-          {digits.map((digit, idx) => (
-            <View key={idx} style={styles.codeBox}>
-              <Text style={styles.codeDigit}>{digit}</Text>
-            </View>
-          ))}
-        </Pressable>
-
-        <TextInput
-          ref={inputRef}
-          style={styles.hiddenInput}
-          keyboardType="number-pad"
-          value={code}
-          onChangeText={onChangeText}
-          maxLength={CODE_LENGTH}
-          autoFocus
-        />
-
-        {error && <Text style={styles.error}>{error}</Text>}
-
-        <Pressable
-          style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
-          onPress={handleSubmit}
-          disabled={submitting || code.length !== CODE_LENGTH}
-        >
-          {submitting ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.submitBtnText}>Enviar</Text>
-          )}
-        </Pressable>
-
-        <Pressable
-          style={styles.editPhoneBtn}
-          onPress={() => router.replace('/(auth)/phone')}
-          disabled={submitting}
-        >
-          <Text style={styles.editPhoneText}>Corrigir telefone</Text>
-        </Pressable>
+        <View style={styles.verificationWrapper}>
+          <CodeVerificationView
+            code={code}
+            setCode={(value) => {
+              setCode(sanitizeDigits(value).slice(0, CODE_LENGTH));
+              if (error) setError(null);
+            }}
+            title=""
+            subtitle=""
+            loading={submitting}
+            error={error}
+            codeLength={CODE_LENGTH}
+            onSubmit={handleSubmit}
+            submitLabel="Confirmar"
+            onBack={() => {
+              if (!submitting) router.replace('/(auth)/phone');
+            }}
+            backLabel="Corrigir telefone"
+          />
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  container: {
-    flex: 1,
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 20 as any,
-  },
-  title: { fontSize: 24, fontWeight: '800', textAlign: 'center' },
-  subtitle: { fontSize: 14, opacity: 0.7, textAlign: 'center' },
-  info: { fontSize: 13, textAlign: 'center', color: '#2563eb' },
-  codeBoxes: { flexDirection: 'row', gap: 12, marginTop: 12 },
-  codeBox: {
-    width: 54,
-    height: 64,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f9fafb',
-  },
-  codeDigit: { fontSize: 24, fontWeight: '700' },
-  hiddenInput: { position: 'absolute', opacity: 0, height: 0, width: 0 },
-  error: { fontSize: 13, color: '#ef4444', textAlign: 'center' },
-  submitBtn: {
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: '#2563eb',
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'stretch',
-  },
-  submitBtnDisabled: { opacity: 0.6 },
-  submitBtnText: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  editPhoneBtn: { marginTop: 8, padding: 8 },
-  editPhoneText: { fontSize: 13, color: '#2563eb', fontWeight: '600' },
-});
+type Palette = typeof Colors.light;
+
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    container: {
+      flex: 1,
+      padding: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 24,
+      backgroundColor: colors.background,
+    },
+    title: { fontSize: 24, fontWeight: '800', textAlign: 'center', color: colors.text },
+    subtitle: { fontSize: 14, color: colors.text, opacity: 0.7, textAlign: 'center' },
+    info: { fontSize: 13, textAlign: 'center', color: colors.tint },
+    verificationWrapper: { alignSelf: 'stretch' },
+  });

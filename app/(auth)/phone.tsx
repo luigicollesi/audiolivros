@@ -17,6 +17,8 @@ import { useAuth } from '@/auth/AuthContext';
 import { BASE_URL } from '@/constants/API';
 import { RootState } from '@/store';
 import { authLogger } from '@/utils/logger';
+import Colors from '@/constants/Colors';
+import { useColorScheme } from '@/components/shared/useColorScheme';
 
 const DEFAULT_LANGUAGE = 'pt-BR';
 
@@ -27,6 +29,12 @@ export default function PhoneScreen() {
   const dispatch = useDispatch();
   const router = useRouter();
   const { session } = useAuth();
+  const scheme = useColorScheme() ?? 'light';
+  const palette = Colors[scheme];
+  const isDark = scheme === 'dark';
+  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
+  const placeholderColor = isDark ? '#9ca3af' : '#6b7280';
+  const primaryTextColor = isDark ? '#000' : '#fff';
 
   const pending = useSelector((s: RootState) => s.auth?.pendingPhone);
   const globalError = useSelector((s: RootState) => s.auth?.error ?? null);
@@ -155,6 +163,7 @@ export default function PhoneScreen() {
             keyboardType="number-pad"
             maxLength={2}
             placeholder="DD"
+            placeholderTextColor={placeholderColor}
             value={ddd}
             onChangeText={onChangeDDD}
           />
@@ -163,6 +172,7 @@ export default function PhoneScreen() {
             keyboardType="number-pad"
             maxLength={10}
             placeholder="XXXXX-XXXX"
+            placeholderTextColor={placeholderColor}
             value={number}
             onChangeText={onChangeNumber}
           />
@@ -178,7 +188,7 @@ export default function PhoneScreen() {
           disabled={submitting}
         >
           {submitting ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={primaryTextColor} />
           ) : (
             <Text style={styles.submitBtnText}>Enviar código</Text>
           )}
@@ -188,50 +198,56 @@ export default function PhoneScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  container: {
-    flex: 1,
-    padding: 24,
-    gap: 24 as any,
-    alignItems: 'stretch',
-    justifyContent: 'center',
-  },
-  header: { gap: 8 as any, alignItems: 'center' },
-  title: { fontSize: 24, fontWeight: '800', textAlign: 'center' },
-  subtitle: { fontSize: 14, opacity: 0.7, textAlign: 'center' },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  countryCode: {
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#e5e7eb',
-  },
-  countryCodeText: { fontSize: 16, fontWeight: '600' },
-  textInput: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    fontSize: 16,
-  },
-  dddInput: { width: 70, textAlign: 'center' },
-  phoneInput: { flex: 1 },
-  info: { fontSize: 13, textAlign: 'center', color: '#2563eb' },
-  error: { fontSize: 13, color: '#ef4444', textAlign: 'center' },
-  submitBtn: {
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: '#2563eb',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 12,
-  },
-  submitBtnDisabled: { opacity: 0.7 },
-  submitBtnText: { color: '#fff', fontSize: 18, fontWeight: '700' },
-});
+type Palette = typeof Colors.light;
+
+const createStyles = (colors: Palette, isDark: boolean) =>
+  StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    container: {
+      flex: 1,
+      padding: 24,
+      gap: 24,
+      alignItems: 'stretch',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+    },
+    header: { gap: 8, alignItems: 'center' },
+    title: { fontSize: 24, fontWeight: '800', textAlign: 'center', color: colors.text },
+    subtitle: { fontSize: 14, color: colors.text, opacity: 0.7, textAlign: 'center' },
+    inputRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    countryCode: {
+      paddingHorizontal: 12,
+      paddingVertical: 14,
+      borderRadius: 12,
+      backgroundColor: colors.bookCard,
+    },
+    countryCodeText: { fontSize: 16, fontWeight: '600', color: colors.text },
+    textInput: {
+      borderWidth: 1,
+      borderColor: colors.tabIconDefault,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 14,
+      fontSize: 16,
+      color: colors.text,
+      backgroundColor: isDark ? colors.bookCard : colors.background,
+    },
+    dddInput: { width: 70, textAlign: 'center' },
+    phoneInput: { flex: 1 },
+    info: { fontSize: 13, textAlign: 'center', color: colors.tint },
+    error: { fontSize: 13, color: '#ef4444', textAlign: 'center' },
+    submitBtn: {
+      height: 56,
+      borderRadius: 16,
+      backgroundColor: colors.tint,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 12,
+    },
+    submitBtnDisabled: { opacity: 0.7 },
+    submitBtnText: { color: isDark ? '#000' : '#fff', fontSize: 18, fontWeight: '700' },
+  });

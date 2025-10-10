@@ -8,6 +8,8 @@ import { BASE_URL } from '@/constants/API';
 import { TextField } from '@/components/shared/TextField';
 import { AuthCard } from '@/components/auth/AuthCard';
 import { authLogger } from '@/utils/logger';
+import Colors from '@/constants/Colors';
+import { useColorScheme } from '@/components/shared/useColorScheme';
 
 const MIN_PASSWORD_LEN = 8;
 
@@ -18,6 +20,11 @@ export default function EmailPasswordScreen() {
   const router = useRouter();
   const dispatch = useDispatch();
   const { registerToken, email } = useLocalSearchParams<{ registerToken?: string; email?: string }>();
+  const scheme = useColorScheme() ?? 'light';
+  const palette = Colors[scheme];
+  const isDark = scheme === 'dark';
+  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
+  const primaryTextColor = isDark ? '#000' : '#fff';
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -143,7 +150,7 @@ export default function EmailPasswordScreen() {
             disabled={!passwordsMatch || loading}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={primaryTextColor} />
             ) : (
               <Text style={styles.primaryBtnText}>Continuar</Text>
             )}
@@ -158,26 +165,30 @@ export default function EmailPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  container: {
-    flex: 1,
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  hint: { fontSize: 12, color: '#6b7280', textAlign: 'center' },
-  primaryBtn: {
-    marginTop: 4,
-    height: 48,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2563eb',
-  },
-  primaryBtnDisabled: { opacity: 0.6 },
-  primaryBtnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  secondaryBtn: { alignItems: 'center', paddingVertical: 10 },
-  secondaryBtnText: { color: '#2563eb', fontWeight: '600' },
-  error: { color: '#ef4444', fontSize: 13, textAlign: 'center' },
-});
+type Palette = typeof Colors.light;
+
+const createStyles = (colors: Palette, isDark: boolean) =>
+  StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    container: {
+      flex: 1,
+      padding: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+    },
+    hint: { fontSize: 12, color: colors.text, opacity: 0.7, textAlign: 'center' },
+    primaryBtn: {
+      marginTop: 4,
+      height: 48,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.tint,
+    },
+    primaryBtnDisabled: { opacity: 0.6 },
+    primaryBtnText: { color: isDark ? '#000' : '#fff', fontWeight: '600', fontSize: 16 },
+    secondaryBtn: { alignItems: 'center', paddingVertical: 10 },
+    secondaryBtnText: { color: colors.tint, fontWeight: '600' },
+    error: { color: '#ef4444', fontSize: 13, textAlign: 'center' },
+  });

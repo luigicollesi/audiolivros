@@ -1,6 +1,8 @@
 // components/auth/CodeVerificationView.tsx
 import React, { useCallback, useMemo, useRef } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import Colors from '@/constants/Colors';
+import { useColorScheme } from '@/components/shared/useColorScheme';
 
 const DEFAULT_CODE_LENGTH = 6;
 
@@ -38,6 +40,11 @@ export function CodeVerificationView({
   secondActionDisabled,
 }: CodeVerificationViewProps) {
   const inputRef = useRef<TextInput>(null);
+  const scheme = useColorScheme() ?? 'light';
+  const palette = Colors[scheme];
+  const isDark = scheme === 'dark';
+  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
+  const primaryTextColor = isDark ? '#000' : '#fff';
   const digits = useMemo(() => {
     const arr = new Array(codeLength).fill('');
     const safe = code.replace(/\D/g, '').slice(0, codeLength);
@@ -86,7 +93,7 @@ export function CodeVerificationView({
         disabled={code.length !== codeLength || loading}
       >
         {loading ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={primaryTextColor} />
         ) : (
           <Text style={styles.primaryBtnText}>{submitLabel}</Text>
         )}
@@ -111,47 +118,54 @@ export function CodeVerificationView({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: 16,
-    width: '100%',
-    alignItems: 'center',
-  },
-  title: { fontSize: 22, fontWeight: '800', textAlign: 'center' },
-  subtitle: { fontSize: 14, opacity: 0.7, textAlign: 'center' },
-  codeBoxes: { flexDirection: 'row', gap: 10 },
-  codeBox: {
-    width: 48,
-    height: 58,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f9fafb',
-  },
-  codeDigit: { fontSize: 22, fontWeight: '700' },
-  hiddenInput: { position: 'absolute', opacity: 0, width: 0, height: 0 },
-  primaryBtn: {
-    marginTop: 6,
-    height: 48,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2563eb',
-    alignSelf: 'stretch',
-  },
-  primaryBtnDisabled: { opacity: 0.6 },
-  primaryBtnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  secondaryBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: '#e0ecff',
-  },
-  secondaryBtnDisabled: { opacity: 0.6 },
-  secondaryBtnText: { color: '#2563eb', fontWeight: '600', textAlign: 'center' },
-  backBtn: { paddingVertical: 8 },
-  backBtnText: { color: '#2563eb', fontWeight: '600' },
-  error: { color: '#ef4444', fontSize: 13, textAlign: 'center' },
-});
+type Palette = typeof Colors.light;
+
+const createStyles = (colors: Palette, isDark: boolean) => {
+  const secondaryBackground = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(47,149,220,0.12)';
+  const primaryTextColor = isDark ? '#000' : '#fff';
+
+  return StyleSheet.create({
+    container: {
+      gap: 16,
+      width: '100%',
+      alignItems: 'center',
+    },
+    title: { fontSize: 22, fontWeight: '800', textAlign: 'center', color: colors.text },
+    subtitle: { fontSize: 14, color: colors.text, opacity: 0.7, textAlign: 'center' },
+    codeBoxes: { flexDirection: 'row', gap: 10 },
+    codeBox: {
+      width: 48,
+      height: 58,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.tabIconDefault,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDark ? colors.bookCard : colors.background,
+    },
+    codeDigit: { fontSize: 22, fontWeight: '700', color: colors.text },
+    hiddenInput: { position: 'absolute', opacity: 0, width: 0, height: 0 },
+    primaryBtn: {
+      marginTop: 6,
+      height: 48,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.tint,
+      alignSelf: 'stretch',
+    },
+    primaryBtnDisabled: { opacity: 0.6 },
+    primaryBtnText: { color: primaryTextColor, fontWeight: '600', fontSize: 16 },
+    secondaryBtn: {
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      borderRadius: 10,
+      backgroundColor: secondaryBackground,
+    },
+    secondaryBtnDisabled: { opacity: 0.6 },
+    secondaryBtnText: { color: colors.tint, fontWeight: '600', textAlign: 'center' },
+    backBtn: { paddingVertical: 8 },
+    backBtnText: { color: colors.tint, fontWeight: '600' },
+    error: { color: '#ef4444', fontSize: 13, textAlign: 'center' },
+  });
+};

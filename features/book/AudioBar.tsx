@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View as RNView } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { Text, View } from '@/components/shared/Themed';
+import Colors from '@/constants/Colors';
+import { useColorScheme } from '@/components/shared/useColorScheme';
 
 export type AudioBarProps = {
   bottomInset: number;
@@ -46,6 +48,11 @@ export function AudioBar({
   availableRates,
   onSelectRate,
 }: AudioBarProps) {
+  const scheme = useColorScheme() ?? 'light';
+  const palette = Colors[scheme];
+  const isDark = scheme === 'dark';
+  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
+  const accent = palette.tint;
   const [ratePickerVisible, setRatePickerVisible] = useState(false);
 
   const rateButtons = useMemo(
@@ -104,7 +111,7 @@ export function AudioBar({
       <View style={styles.progressWrap}>
         {audioLoading && (
           <View style={styles.loadingRow}>
-            <ActivityIndicator />
+            <ActivityIndicator color={accent} />
             <Text style={styles.meta}>Carregando áudio...</Text>
           </View>
         )}
@@ -120,9 +127,9 @@ export function AudioBar({
               minimumValue={0}
               maximumValue={duration}
               value={position}
-              minimumTrackTintColor="#111827"
-              maximumTrackTintColor="#d1d5db"
-              thumbTintColor="#111827"
+              minimumTrackTintColor={accent}
+              maximumTrackTintColor={palette.tabIconDefault}
+              thumbTintColor={accent}
               onSlidingComplete={onSeek}
               disabled={seeking}
             />
@@ -169,125 +176,132 @@ export function AudioBar({
   );
 }
 
-const styles = StyleSheet.create({
-  audioBar: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 0,
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-    zIndex: 20,
-    height: AUDIO_BAR_HEIGHT + 10,
-  },
-  playBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  playIcon: { fontSize: 18 },
-  disabled: { opacity: 0.6 },
-  progressWrap: { flex: 1, gap: 8 },
-  progressSection: { gap: 6 },
-  slider: { width: '100%', height: 30 },
-  timerRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  timer: { fontSize: 12, opacity: 0.8 },
-  meta: { fontSize: 14, opacity: 0.8 },
-  error: { color: 'tomato' },
-  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  controlsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 4,
-    gap: 8,
-  },
-  rateWrapper: {
-    position: 'relative',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  rateSelectorBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#2563eb',
-    backgroundColor: 'rgba(37,99,235,0.1)',
-  },
-  rateSelectorText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#2563eb',
-  },
-  ratePopover: {
-    position: 'absolute',
-    alignItems: 'stretch',
-    alignSelf: 'center',
-    bottom: 0,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#d1d5db',
-    backgroundColor: '#fff',
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-    zIndex: 30,
-  },
-  smallBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#d1d5db',
-  },
-  smallBtnText: { fontSize: 12, fontWeight: '600' },
-  rateOverlay: {
-    backgroundColor: 'transparent',
-  },
-  rateOptionsColumn: {
-    gap: 8,
-    flexDirection: 'column',
-    alignItems: 'stretch',
-  },
-  rateOption: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#d1d5db',
-    alignItems: 'center',
-    minWidth: 72,
-    minHeight: 36,
-    justifyContent: 'center',
-  },
-  rateOptionSelected: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
-  },
-  rateOptionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  rateOptionTextSelected: {
-    color: '#fff',
-  },
-});
+type Palette = typeof Colors.light;
+
+const createStyles = (colors: Palette, isDark: boolean) =>
+  StyleSheet.create({
+    audioBar: {
+      position: 'absolute',
+      left: 16,
+      right: 16,
+      bottom: 0,
+      paddingHorizontal: 12,
+      paddingTop: 10,
+      borderRadius: 14,
+      borderWidth: StyleSheet.hairlineWidth,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      shadowColor: '#000',
+      shadowOpacity: 0.12,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 4,
+      zIndex: 20,
+      height: AUDIO_BAR_HEIGHT + 10,
+    },
+    playBtn: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.tabIconDefault,
+      backgroundColor: isDark ? colors.bookCard : colors.background,
+    },
+    playIcon: { fontSize: 18, color: colors.text },
+    disabled: { opacity: 0.6 },
+    progressWrap: { flex: 1, gap: 8 },
+    progressSection: { gap: 6 },
+    slider: { width: '100%', height: 30 },
+    timerRow: { flexDirection: 'row', justifyContent: 'space-between' },
+    timer: { fontSize: 12, color: colors.text, opacity: 0.8 },
+    meta: { fontSize: 14, color: colors.text, opacity: 0.8 },
+    error: { color: 'tomato' },
+    loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    controlsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 4,
+      gap: 8,
+    },
+    rateWrapper: {
+      position: 'relative',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    rateSelectorBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 8,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.tint,
+      backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(47,149,220,0.12)',
+    },
+    rateSelectorText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.tint,
+    },
+    ratePopover: {
+      position: 'absolute',
+      alignItems: 'stretch',
+      alignSelf: 'center',
+      bottom: 0,
+      borderRadius: 10,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.tabIconDefault,
+      backgroundColor: colors.bookCard,
+      paddingVertical: 6,
+      paddingHorizontal: 8,
+      shadowColor: '#000',
+      shadowOpacity: 0.12,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 6,
+      zIndex: 30,
+    },
+    smallBtn: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.tabIconDefault,
+      backgroundColor: isDark ? colors.bookCard : colors.background,
+    },
+    smallBtnText: { fontSize: 12, fontWeight: '600', color: colors.text },
+    rateOverlay: {
+      backgroundColor: 'transparent',
+    },
+    rateOptionsColumn: {
+      gap: 8,
+      flexDirection: 'column',
+      alignItems: 'stretch',
+    },
+    rateOption: {
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 10,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.tabIconDefault,
+      alignItems: 'center',
+      minWidth: 72,
+      minHeight: 36,
+      justifyContent: 'center',
+      backgroundColor: isDark ? colors.bookCard : colors.background,
+    },
+    rateOptionSelected: {
+      backgroundColor: colors.tint,
+      borderColor: colors.tint,
+    },
+    rateOptionText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    rateOptionTextSelected: {
+      color: isDark ? '#000' : '#fff',
+    },
+  });

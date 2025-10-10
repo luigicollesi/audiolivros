@@ -7,11 +7,19 @@ import { BASE_URL } from '@/constants/API';
 import { TextField } from '@/components/shared/TextField';
 import { AuthCard } from '@/components/auth/AuthCard';
 import { authLogger } from '@/utils/logger';
+import Colors from '@/constants/Colors';
+import { useColorScheme } from '@/components/shared/useColorScheme';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function ForgotEmailScreen() {
   const router = useRouter();
+  const scheme = useColorScheme() ?? 'light';
+  const palette = Colors[scheme];
+  const isDark = scheme === 'dark';
+  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
+  const primaryTextColor = isDark ? '#000' : '#fff';
+
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +87,11 @@ export default function ForgotEmailScreen() {
             onPress={submit}
             disabled={!canSubmit || loading}
           >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Enviar código</Text>}
+            {loading ? (
+              <ActivityIndicator color={primaryTextColor} />
+            ) : (
+              <Text style={styles.primaryBtnText}>Enviar código</Text>
+            )}
           </Pressable>
 
           <Pressable style={styles.linkBtn} onPress={() => router.back()}>
@@ -91,25 +103,28 @@ export default function ForgotEmailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  container: {
-    flex: 1,
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f9fafb',
-  },
-  primaryBtn: {
-    marginTop: 4,
-    height: 48,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2563eb',
-  },
-  primaryBtnDisabled: { opacity: 0.6 },
-  primaryBtnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  linkBtn: { paddingVertical: 10, alignItems: 'center' },
-  linkText: { color: '#2563eb', fontWeight: '600' },
-});
+type Palette = typeof Colors.light;
+
+const createStyles = (colors: Palette, isDark: boolean) =>
+  StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    container: {
+      flex: 1,
+      padding: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+    },
+    primaryBtn: {
+      marginTop: 4,
+      height: 48,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.tint,
+    },
+    primaryBtnDisabled: { opacity: 0.6 },
+    primaryBtnText: { color: isDark ? '#000' : '#fff', fontWeight: '600', fontSize: 16 },
+    linkBtn: { paddingVertical: 10, alignItems: 'center' },
+    linkText: { color: colors.tint, fontWeight: '600' },
+  });
