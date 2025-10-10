@@ -8,7 +8,7 @@ import {
   useColorScheme,
 } from 'react-native';
 import Colors from '@/constants/Colors';
-import { Text, View } from '@/components/Themed';
+import { Text, View } from '@/components/shared/Themed';
 import { GENRES } from '@/constants/Genres';
 
 export type GenreOption = { id: number; name: string; slug: string };

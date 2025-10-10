@@ -7,7 +7,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect, useMemo } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { useColorScheme } from '@/components/useColorScheme';
+import { useColorScheme } from '@/components/shared/useColorScheme';
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
 
 import { Provider } from 'react-redux';

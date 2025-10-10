@@ -11,9 +11,9 @@ import {
   Pressable,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { Text, View } from '@/components/Themed';
-import { GridCards, BookItem, BooksResponse } from '@/components/books';
-import { GenreModal, GenreOption } from '@/components/GenreModal';
+import { Text, View } from '@/components/shared/Themed';
+import { GridCards, BookItem, BooksResponse } from '@/components/book/BookGrid';
+import { GenreModal, GenreOption } from '@/components/book/GenreModal';
 import { BASE_URL } from '@/constants/API';
 
 import { useAuthedFetch } from '@/auth/useAuthedFetch';

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet } from 'react-native';
-import { Text, View } from '@/components/Themed';
+import { Text, View } from '@/components/shared/Themed';
 import { HighlightedSummary } from './HighlightedSummary';
 
 type Props = {

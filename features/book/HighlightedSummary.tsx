@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
-import { Text } from '@/components/Themed';
+import { Text } from '@/components/shared/Themed';
 
 type Props = {
   text: string;

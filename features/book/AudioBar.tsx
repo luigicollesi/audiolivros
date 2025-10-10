@@ -1,7 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View as RNView } from 'react-native';
 import Slider from '@react-native-community/slider';
-import { Text, View } from '@/components/Themed';
+import { Text, View } from '@/components/shared/Themed';
 
 export type AudioBarProps = {
   bottomInset: number;
