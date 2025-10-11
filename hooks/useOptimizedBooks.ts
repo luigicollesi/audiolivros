@@ -118,31 +118,46 @@ export function useOptimizedBooks(
     };
   }, [params, fetchJSON, isFavorites]);
 
+  // Stable options to prevent re-renders
+  const stableOptions = useMemo(() => ({
+    staleTime,
+    retry: 2,
+    retryDelay: 1000,
+    dedupe: true,
+  }), [staleTime]);
+
   // Main cache hook
   const { data, isLoading, error, refetch } = useCachedRequest(
     cacheKey,
     enabled ? fetcherFunction : null,
-    {
-      staleTime,
-      retry: 2,
-      retryDelay: 1000,
-      dedupe: true,
-    }
+    stableOptions
   );
 
   // Function to prefetch adjacent pages
   const prefetchAdjacent = useCallback(async (currentPageIndex: number, maxPage?: number) => {
     if (!enabled) return;
 
-    const maxPageIndex = maxPage ?? Math.ceil((data?.total || 0) / params.pageSize) - 1;
+    // Only prefetch if we have data and know the total
+    if (!data || typeof data.total !== 'number') {
+      booksLogger.debug('Skipping prefetch - no data or total unknown', { currentPageIndex });
+      return;
+    }
+
+    const maxPageIndex = maxPage ?? Math.ceil(data.total / params.pageSize) - 1;
+
+    // Don't prefetch if there's only one page
+    if (maxPageIndex === 0) {
+      booksLogger.debug('Skipping prefetch - only one page available', { total: data.total });
+      return;
+    }
 
     // Prefetch next and previous pages
     for (let i = 1; i <= prefetchDistance; i++) {
       const nextPage = currentPageIndex + i;
       const prevPage = currentPageIndex - i;
 
-      // Prefetch next page
-      if (nextPage <= maxPageIndex) {
+      // Prefetch next page only if there are enough items
+      if (nextPage <= maxPageIndex && data.total > nextPage * params.pageSize) {
         const nextParams = { ...params, pageIndex: nextPage };
         const nextKey = [
           isFavorites ? 'favorites' : 'books',

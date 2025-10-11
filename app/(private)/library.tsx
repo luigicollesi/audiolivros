@@ -1,11 +1,10 @@
 import { useAuth } from '@/auth/AuthContext';
 import { useAuthedFetch } from '@/auth/useAuthedFetch';
-import { BookItem, BooksResponse, GridCards } from '@/components/book/BookGrid';
+import { BookItem, GridCards } from '@/components/book/BookGrid';
 import { Text, View } from '@/components/shared/Themed';
 import { useColorScheme } from '@/components/shared/useColorScheme';
-import { BASE_URL } from '@/constants/API';
 import Colors from '@/constants/Colors';
-import { useCachedFetch } from '@/hooks/useCachedFetch';
+import { useOptimizedBooks } from '@/hooks/useOptimizedBooks';
 import { useSafeInsets } from '@/hooks/useSafeInsets';
 import { useSmartRefresh } from '@/hooks/useSmartRefresh';
 import { favoritesLogger } from '@/utils/logger';
@@ -31,27 +30,17 @@ export default function LibraryScreen() {
     session,
     favoritesDirty,
     acknowledgeFavorites,
-    markFavoritesDirty,
   } = useAuth();
   const { scheduleRefresh } = useSmartRefresh();
-  const { cachedFetch, invalidateCache } = useCachedFetch({
-    cachePattern: 'favorites',
-    staleTime: 2 * 60 * 1000, // 2 minutes for favorites (shorter since they change more)
-  });
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
 
-  const [total, setTotal] = useState<number | null>(null);
-  const [pages, setPages] = useState<Record<number, BookItem[]>>({});
-  const [loadingPages, setLoadingPages] = useState<Set<number>>(new Set());
-  const [, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   const screenWidth = Dimensions.get('window').width;
   const flatRef = useRef<FlatList<number>>(null);
   const initializedRef = useRef(false);
-  const prefetchedPagesRef = useRef<Set<number>>(new Set());
 
   const languagePreference = session?.user?.language;
   const languageId = useMemo(() => {
@@ -59,6 +48,38 @@ export default function LibraryScreen() {
       typeof languagePreference === 'string' ? languagePreference.trim() : '';
     return normalized || 'pt-BR';
   }, [languagePreference]);
+
+  // Stable parameters and options for favorites
+  const favoritesQueryParams = useMemo(() => ({
+    pageIndex: currentPageIndex,
+    pageSize: PAGE_SIZE,
+    languageId,
+    genreId: null,
+    searchText: undefined,
+  }), [currentPageIndex, languageId]);
+
+  const favoritesQueryOptions = useMemo(() => ({
+    enabled: true,
+    staleTime: 60 * 1000, // 1 minute for favorites - reactive updates handle changes
+    prefetchDistance: 1,
+    isFavorites: true,
+  }), []);
+
+  // Use optimized books hook for favorites
+  const {
+    data: currentPageData,
+    isLoading: pageLoading,
+    error: pageError,
+    refetch: refetchCurrentPage,
+    prefetchAdjacent,
+    invalidateCache: invalidateFavoritesCache,
+  } = useOptimizedBooks(favoritesQueryParams, favoritesQueryOptions);
+
+  // Derived values from optimized data
+  const total = currentPageData?.total ?? null;
+  const currentPageItems = currentPageData?.items ?? [];
+  const isLoading = pageLoading;
+  const error = pageError;
 
   const maxPageIndex = useMemo(() => {
     if (total == null) return 0;
@@ -75,150 +96,119 @@ export default function LibraryScreen() {
     return total > PAGE_SIZE;
   }, [total]);
 
-  const fetchPage = useCallback(
-    async (pageIndex: number, force = false) => {
-      if (pageIndex < 0) return;
-      if (force) {
-        prefetchedPagesRef.current.delete(pageIndex);
-      }
-      if (!force && pages[pageIndex]) return;
-      if (loadingPages.has(pageIndex)) return;
-
-      setLoadingPages((prev) => new Set(prev).add(pageIndex));
-      setError(null);
-
-      const start = pageIndex * PAGE_SIZE;
-      const end = start + (PAGE_SIZE - 1);
-      const params = new URLSearchParams({
-        start: String(start),
-        end: String(end),
-        languageId,
-      });
-      const url = `${BASE_URL}/favorites?${params.toString()}`;
-
-      try {
-        favoritesLogger.info('Carregando favoritos (cached)', {
-          pageIndex,
-          start,
-          end,
-          languageId,
-        });
-        const data = await cachedFetch<BooksResponse>(url, force);
-        const normalizedItems = (data.items ?? []).map((item) => ({
-          ...item,
-          author:
-            typeof item.author === 'string' && item.author.trim()
-              ? item.author
-              : 'Autor desconhecido',
-        }));
-
-        if (typeof data.total === 'number') {
-          setTotal(data.total);
-        } else {
-          setTotal((old) => old ?? normalizedItems.length);
-        }
-
-        setPages((prev) => {
-          prefetchedPagesRef.current.add(pageIndex);
-          return { ...prev, [pageIndex]: normalizedItems };
-        });
-        favoritesLogger.debug('Favoritos carregados', {
-          pageIndex,
-          itemCount: normalizedItems.length,
-          total: typeof data.total === 'number' ? data.total : undefined,
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        setError(`Falha ao carregar favoritos: ${message}`);
-        favoritesLogger.debug('Erro ao buscar favoritos', {
-          pageIndex,
-          error: message,
-        });
-      } finally {
-        setLoadingPages((prev) => {
-          const next = new Set(prev);
-          next.delete(pageIndex);
-          return next;
-        });
-      }
-    },
-    [pages, loadingPages, cachedFetch, languageId],
-  );
-
-  const prefetchNext = useCallback(
+  // Helper to trigger prefetch of adjacent pages
+  const triggerPrefetch = useCallback(
     (pageIndex: number) => {
-      const nextIndex = pageIndex + 1;
-      if (nextIndex < 0) return;
-      if (total != null && nextIndex > maxPageIndex) return;
-      if (prefetchedPagesRef.current.has(nextIndex)) return;
-      fetchPage(nextIndex).catch(() => {});
+      prefetchAdjacent(pageIndex, maxPageIndex).catch(() => {
+        favoritesLogger.warn('Failed to prefetch adjacent pages', { pageIndex });
+      });
     },
-    [fetchPage, total, maxPageIndex],
+    [prefetchAdjacent, maxPageIndex]
   );
 
-  useEffect(() => {
-    // Invalidate cache when language changes
-    invalidateCache();
-    
-    setPages({});
-    setTotal(null);
-    setCurrentPageIndex(0);
-    initializedRef.current = false;
-    prefetchedPagesRef.current = new Set();
-    flatRef.current?.scrollToIndex({ index: 0, animated: false, viewPosition: 0 });
-    favoritesLogger.debug('Recarregando favoritos por idioma', { languageId });
-    fetchPage(0, true).then(() => {
-      prefetchNext(0);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [languageId, invalidateCache]);
 
+
+  // Reset pagination when user or language changes
+  const userEmail = session?.user?.email;
+  const sessionToken = session?.token;
+  useEffect(() => {
+    if (!userEmail || !sessionToken) {
+      // User logged out, clear everything
+      favoritesLogger.info('User logged out, clearing favorites data');
+      invalidateFavoritesCache();
+      return;
+    }
+    
+    // Only reset if this is not the initial load
+    if (initializedRef.current) {
+      favoritesLogger.info('User or language changed, resetting favorites pagination', { 
+        userEmail, 
+        languageId 
+      });
+      
+      invalidateFavoritesCache();
+      setCurrentPageIndex(0);
+      initializedRef.current = false;
+      flatRef.current?.scrollToIndex({ index: 0, animated: false, viewPosition: 0 });
+    }
+  }, [userEmail, sessionToken, languageId, invalidateFavoritesCache]);
+
+  // Handle favorites dirty flag - this handles individual favorite/unfavorite actions
   useEffect(() => {
     if (!favoritesDirty) return;
+    
+    favoritesLogger.info('Favorites dirty flag detected, refreshing data');
     acknowledgeFavorites();
     
-    // Invalidate cache when favorites change
-    invalidateCache();
+    // Invalidate cache to ensure fresh data on next request
+    invalidateFavoritesCache();
     
-    favoritesLogger.debug('Flag de favoritos alterada, atualizando lista');
-    setPages({});
-    setTotal(null);
-    setCurrentPageIndex(0);
-    initializedRef.current = false;
-    prefetchedPagesRef.current = new Set();
-    flatRef.current?.scrollToIndex({ index: 0, animated: false, viewPosition: 0 });
-    fetchPage(0, true)
-      .then(() => {
-        prefetchNext(0);
-      })
-      .catch(() => {
-        // caso falhe, marca novamente para tentar em outra navegação
-        markFavoritesDirty();
-        favoritesLogger.warn('Falha ao atualizar favoritos após mudança de estado, flag mantida');
+    // Force refresh the current page data to reflect changes
+    refetchCurrentPage().then((newData) => {
+      favoritesLogger.debug('Favorites data refreshed after dirty flag', {
+        newTotal: newData?.total,
+        currentPage: currentPageIndex,
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [favoritesDirty, acknowledgeFavorites, fetchPage, prefetchNext, markFavoritesDirty, invalidateCache]);
+      
+      // If we're on a page that no longer has data, go back to first page
+      if (newData && typeof newData.total === 'number') {
+        const maxPage = Math.max(0, Math.ceil(newData.total / PAGE_SIZE) - 1);
+        if (currentPageIndex > maxPage) {
+          setCurrentPageIndex(0);
+          flatRef.current?.scrollToIndex({ index: 0, animated: false, viewPosition: 0 });
+          favoritesLogger.debug('Reset to first page - current page out of bounds', {
+            currentPage: currentPageIndex,
+            maxPage,
+            newTotal: newData.total,
+          });
+        }
+      }
+    }).catch((error) => {
+      favoritesLogger.error('Failed to refresh favorites after dirty flag', { error });
+    });
+  }, [favoritesDirty, acknowledgeFavorites, refetchCurrentPage, invalidateFavoritesCache, currentPageIndex]);
+
+  // Only trigger prefetch after data is loaded and we're on page 0
+  useEffect(() => {
+    if (currentPageData && typeof currentPageData.total === 'number' && currentPageIndex === 0 && !isLoading) {
+      // Only prefetch if there are more pages available
+      if (currentPageData.total > PAGE_SIZE) {
+        favoritesLogger.debug('Data loaded for favorites page 0, triggering prefetch', { 
+          total: currentPageData.total,
+          hasMorePages: currentPageData.total > PAGE_SIZE 
+        });
+        triggerPrefetch(currentPageIndex);
+      }
+    }
+  }, [currentPageData, currentPageIndex, isLoading, triggerPrefetch]);
 
   useFocusEffect(
     useCallback(() => {
       // Smart session refresh - prevents duplicates
       const cleanup = scheduleRefresh();
       
+      favoritesLogger.debug('Library screen focused', {
+        initialized: initializedRef.current,
+        favoritesDirty,
+        hasData: !!currentPageData,
+        total: currentPageData?.total,
+        currentPage: currentPageIndex,
+      });
+      
       if (!initializedRef.current) {
         initializedRef.current = true;
-        if (!pages[0]) {
-          fetchPage(0, true).then(() => {
-            prefetchNext(0);
-          });
-        } else {
-          prefetchNext(currentPageIndex);
-        }
+        // Don't prefetch on first load - wait for data to arrive
+        favoritesLogger.debug('Initial focus on favorites - waiting for data before prefetch');
       } else {
-        prefetchNext(currentPageIndex);
+        // Only prefetch on subsequent focus if we have data
+        // Don't automatically refresh - let the reactive effects handle updates
+        if (currentPageData && typeof currentPageData.total === 'number') {
+          triggerPrefetch(currentPageIndex);
+        }
       }
 
       return cleanup;
-    }, [scheduleRefresh, fetchPage, prefetchNext, pages, currentPageIndex]),
+    }, [scheduleRefresh, triggerPrefetch, currentPageIndex, currentPageData]),
   );
 
   const onMomentumEnd = useCallback(
@@ -227,22 +217,23 @@ export default function LibraryScreen() {
       const pageIndex = Math.round(x / screenWidth);
       if (pageIndex !== currentPageIndex) {
         setCurrentPageIndex(pageIndex);
+        // Trigger prefetch for new page
+        triggerPrefetch(pageIndex);
       }
-      fetchPage(pageIndex).then(() => prefetchNext(pageIndex));
     },
-    [screenWidth, fetchPage, prefetchNext, currentPageIndex],
+    [screenWidth, currentPageIndex, triggerPrefetch],
   );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      favoritesLogger.debug('Atualizando favoritos via pull-to-refresh');
-      await fetchPage(currentPageIndex, true);
-      prefetchNext(currentPageIndex);
+      favoritesLogger.debug('Refreshing favorites via pull-to-refresh');
+      await refetchCurrentPage();
+      // Prefetch will be triggered by the useEffect above after data loads
     } finally {
       setRefreshing(false);
     }
-  }, [fetchPage, prefetchNext, currentPageIndex]);
+  }, [refetchCurrentPage]);
 
   const handlePressBook = useCallback(
     (b: BookItem) => {
@@ -266,33 +257,35 @@ export default function LibraryScreen() {
 
   const renderPage = useCallback(
     ({ item: pageIndex }: ListRenderItemInfo<number>) => {
-      const items = pages[pageIndex];
-      const isLoading = loadingPages.has(pageIndex) && !items;
+      // For optimized version, we only render the current page
+      const isCurrentPage = pageIndex === currentPageIndex;
+      const items = isCurrentPage ? currentPageItems : [];
+      const isLoadingPage = isCurrentPage && isLoading;
 
       return (
         <View style={[styles.page, { width: screenWidth }]}> 
-          {isLoading && (
+          {isLoadingPage && (
             <View style={styles.pageLoading}>
               <ActivityIndicator />
               <Text>Carregando favoritos...</Text>
             </View>
           )}
-          {!!items && items.length === 0 && (
+          {!isLoadingPage && items.length === 0 && (
             <View style={styles.pageLoading}>
               <Text>Nenhum favorito nesta página.</Text>
             </View>
           )}
-          {!!items && items.length > 0 && (
+          {!isLoadingPage && items.length > 0 && (
             <GridCards books={items} onPressBook={(b) => handlePressBook(b)} />
           )}
         </View>
       );
     },
-    [pages, loadingPages, screenWidth, handlePressBook],
+    [currentPageIndex, currentPageItems, isLoading, screenWidth, handlePressBook],
   );
 
-  const emptyState = loadingPages.size === 0 && total === 0;
-  const singlePageItems = pages[0] ?? (emptyState ? [] : undefined);
+  const emptyState = !isLoading && total === 0;
+  const singlePageItems = currentPageItems;
 
   return (
     <View

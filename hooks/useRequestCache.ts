@@ -218,6 +218,7 @@ export function useCachedRequest<T>(
 
   const stableKey = useMemo(() => key, [key]);
   const stableFetcher = useCallback(fetcher || (() => Promise.resolve(undefined as any)), [fetcher]);
+  const stableOptions = useMemo(() => options || {}, [options?.staleTime, options?.retry, options?.retryDelay, options?.dedupe]);
 
   useEffect(() => {
     if (!stableKey || !fetcher) {
@@ -244,7 +245,7 @@ export function useCachedRequest<T>(
     }
 
     // Executa request
-    cache.get(stableKey, stableFetcher, options)
+    cache.get(stableKey, stableFetcher, stableOptions)
       .then((data) => {
         setState({ data, isLoading: false, error: null });
       })
@@ -255,14 +256,14 @@ export function useCachedRequest<T>(
           error: error.message 
         }));
       });
-  }, [stableKey, stableFetcher, cache, options]);
+  }, [stableKey, stableFetcher, cache, stableOptions]);
 
   const refetch = useCallback(() => {
     if (!stableKey || !fetcher) return Promise.resolve();
 
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     
-    return cache.get(stableKey, stableFetcher, { ...options, staleTime: 0 })
+    return cache.get(stableKey, stableFetcher, { ...stableOptions, staleTime: 0 })
       .then((data) => {
         setState({ data, isLoading: false, error: null });
         return data;
@@ -275,11 +276,11 @@ export function useCachedRequest<T>(
         }));
         throw error;
       });
-  }, [stableKey, stableFetcher, cache, options]);
+  }, [stableKey, stableFetcher, cache, stableOptions]);
 
   const prefetch = useCallback((prefetchKey: string, prefetchFetcher: () => Promise<any>) => {
-    cache.prefetch(prefetchKey, prefetchFetcher, options);
-  }, [cache, options]);
+    cache.prefetch(prefetchKey, prefetchFetcher, stableOptions);
+  }, [cache, stableOptions]);
 
   return {
     data: state.data,

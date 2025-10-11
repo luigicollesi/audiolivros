@@ -1,8 +1,7 @@
 // app/(private)/index.tsx
-import { BookItem, BooksResponse, GridCards } from '@/components/book/BookGrid';
+import { BookItem, GridCards } from '@/components/book/BookGrid';
 import { GenreModal, GenreOption } from '@/components/book/GenreModal';
 import { Text, View } from '@/components/shared/Themed';
-import { BASE_URL } from '@/constants/API';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, {
   useCallback,
@@ -28,7 +27,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { useAuthedFetch } from '@/auth/useAuthedFetch';
 import { useColorScheme } from '@/components/shared/useColorScheme';
 import Colors from '@/constants/Colors';
-import { useCachedFetch } from '@/hooks/useCachedFetch';
+import { useOptimizedBooks } from '@/hooks/useOptimizedBooks';
 import { useSafeInsets } from '@/hooks/useSafeInsets';
 import { useSmartRefresh } from '@/hooks/useSmartRefresh';
 import { booksLogger } from '@/utils/logger';
@@ -42,10 +41,6 @@ export default function TabOneScreen() {
   const { fetchJSON } = useAuthedFetch();
   const { session } = useAuth();
   const { scheduleRefresh } = useSmartRefresh();
-  const { cachedFetch, invalidateCache, prefetchUrl } = useCachedFetch({
-    cachePattern: 'books',
-    staleTime: 3 * 60 * 1000, // 3 minutes for books
-  });
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const isDark = scheme === 'dark';
@@ -53,22 +48,17 @@ export default function TabOneScreen() {
   const placeholderColor = isDark ? '#9ca3af' : '#6b7280';
   const primaryTextColor = isDark ? '#000' : '#fff';
 
-  const [total, setTotal] = useState<number | null>(null);
-  const [pages, setPages] = useState<Record<number, BookItem[]>>({});
-  const [loadingPages, setLoadingPages] = useState<Set<number>>(new Set());
-  const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const [selectedGenre, setSelectedGenre] = useState<GenreOption | null>(null);
   const [showGenreModal, setShowGenreModal] = useState(false);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [searchInput, setSearchInput] = useState('');
   const [searchApplied, setSearchApplied] = useState('');
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const screenWidth = Dimensions.get('window').width;
   const flatRef = useRef<FlatList<number>>(null);
   const initializedRef = useRef(false);
-  const prefetchedPagesRef = useRef<Set<number>>(new Set());
   const searchInputRef = useRef<TextInput>(null);
 
   const languagePreference = session?.user?.language;
@@ -77,6 +67,37 @@ export default function TabOneScreen() {
       typeof languagePreference === 'string' ? languagePreference.trim() : '';
     return normalized || DEFAULT_LANGUAGE;
   }, [languagePreference]);
+
+  // Stable parameters and options to prevent infinite re-renders
+  const bookQueryParams = useMemo(() => ({
+    pageIndex: currentPageIndex,
+    pageSize: PAGE_SIZE,
+    languageId,
+    genreId: selectedGenre?.id || null,
+    searchText: searchApplied || undefined,
+  }), [currentPageIndex, languageId, selectedGenre?.id, searchApplied]);
+
+  const bookQueryOptions = useMemo(() => ({
+    enabled: true,
+    staleTime: 3 * 60 * 1000, // 3 minutes for books
+    prefetchDistance: 1,
+  }), []);
+
+  // Use optimized books hook with intelligent caching and prefetching
+  const {
+    data: currentPageData,
+    isLoading: pageLoading,
+    error: pageError,
+    refetch: refetchCurrentPage,
+    prefetchAdjacent,
+    invalidateCache: invalidateBooksCache,
+  } = useOptimizedBooks(bookQueryParams, bookQueryOptions);
+
+  // Derived values from optimized data
+  const total = currentPageData?.total ?? null;
+  const currentPageItems = currentPageData?.items ?? [];
+  const isLoading = pageLoading;
+  const error = pageError;
 
   const maxPageIndex = useMemo(() => {
     if (total == null) return 0;
@@ -88,139 +109,45 @@ export default function TabOneScreen() {
     return Array.from({ length: maxPageIndex + 1 }, (_, i) => i);
   }, [total, maxPageIndex]);
 
-  const fetchPage = useCallback(
-    async (pageIndex: number, force = false) => {
-      if (pageIndex < 0) return;
-      if (force) {
-        prefetchedPagesRef.current.delete(pageIndex);
-      }
-      if (!force && pages[pageIndex]) return;
-      if (loadingPages.has(pageIndex)) return;
-
-      setLoadingPages(prev => new Set(prev).add(pageIndex));
-      setError(null);
-
-      const start = pageIndex * PAGE_SIZE;
-      const end = start + (PAGE_SIZE - 1);
-
-      let url: string;
-
-      if (searchApplied) {
-        const params = new URLSearchParams({
-          start: String(start),
-          end: String(end),
-          languageId,
-          text: searchApplied,
-        });
-        url = `${BASE_URL}/books/search?${params.toString()}`;
-      } else {
-        const genreId = selectedGenre?.id ?? null;
-        if (genreId != null) {
-          const params = new URLSearchParams({
-            start: String(start),
-            end: String(end),
-            languageId,
-            genreId: String(genreId),
-          });
-          url = `${BASE_URL}/books/genre?${params.toString()}`;
-        } else {
-          const params = new URLSearchParams({
-            start: String(start),
-            end: String(end),
-            languageId,
-          });
-          url = `${BASE_URL}/books?${params.toString()}`;
-        }
-      }
-
-      try {
-        booksLogger.info('Carregando página de livros (cached)', {
-          pageIndex,
-          start,
-          end,
-          search: searchApplied || null,
-          genreId: selectedGenre?.id ?? null,
-          languageId,
-        });
-        const data = await cachedFetch<BooksResponse>(url, force);
-        const normalizedItems = (data.items ?? []).map((item) => ({
-          ...item,
-          author:
-            typeof item.author === 'string' && item.author.trim()
-              ? item.author
-              : 'Autor desconhecido',
-        }));
-
-        if (typeof data.total === 'number') {
-          setTotal(data.total);
-        } else {
-          setTotal(old => (old ?? 0));
-        }
-
-        setPages(prev => {
-          prefetchedPagesRef.current.add(pageIndex);
-          return { ...prev, [pageIndex]: normalizedItems };
-        });
-        booksLogger.debug('Página de livros carregada', {
-          pageIndex,
-          itemCount: normalizedItems.length,
-          total: typeof data.total === 'number' ? data.total : undefined,
-        });
-      } catch (err) {
-        // Se deu 5xx, trate como “página vazia”
-        const msg = err instanceof Error ? err.message : String(err);
-        if (/HTTP 5\d\d/.test(msg)) {
-          setPages(prev => ({ ...prev, [pageIndex]: [] }));
-          setTotal(old => (old == null ? 0 : old));
-          booksLogger.warn('Erro 5xx ao carregar página, preenchendo vazia', {
-            pageIndex,
-            error: msg,
-          });
-        } else {
-          setError(`Falha ao carregar página ${pageIndex}: ${msg}`);
-          booksLogger.error('Falha ao carregar página de livros', {
-            pageIndex,
-            error: err,
-          });
-        }
-      } finally {
-        setLoadingPages(prev => {
-          const next = new Set(prev);
-          next.delete(pageIndex);
-          return next;
-        });
-      }
-    },
-    [loadingPages, pages, selectedGenre, cachedFetch, languageId, searchApplied]
-  );
-
-  const prefetchNext = useCallback(
+  // Helper to trigger prefetch of adjacent pages
+  const triggerPrefetch = useCallback(
     (pageIndex: number) => {
-      const nextIndex = pageIndex + 1;
-      if (nextIndex < 0) return;
-      if (total != null && nextIndex > maxPageIndex) return;
-      if (prefetchedPagesRef.current.has(nextIndex)) return;
-      fetchPage(nextIndex).catch(() => {});
+      prefetchAdjacent(pageIndex, maxPageIndex).catch(() => {
+        booksLogger.warn('Failed to prefetch adjacent pages', { pageIndex });
+      });
     },
-    [fetchPage, total, maxPageIndex]
+    [prefetchAdjacent, maxPageIndex]
   );
 
-  // Ao trocar o gênero: zere dados, volte para página 0 e resete o scroll
+  // Reset pagination when filters change
   useEffect(() => {
     // Invalidate cache when filters change
-    invalidateCache();
+    invalidateBooksCache();
     
-    setPages({});
-    setTotal(null);
     setCurrentPageIndex(0);
     initializedRef.current = false;
-    prefetchedPagesRef.current = new Set();
     flatRef.current?.scrollToIndex({ index: 0, animated: false, viewPosition: 0 });
-    fetchPage(0, true).then(() => {
-      prefetchNext(0);
+    
+    booksLogger.info('Filter changed, resetting pagination', {
+      genre: selectedGenre?.name || null,
+      search: searchApplied || null,
+      languageId,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGenre, languageId, searchApplied, invalidateCache]);
+  }, [selectedGenre, languageId, searchApplied, invalidateBooksCache]);
+
+  // Only trigger prefetch after data is loaded and we're on page 0
+  useEffect(() => {
+    if (currentPageData && typeof currentPageData.total === 'number' && currentPageIndex === 0 && !isLoading) {
+      // Only prefetch if there are more pages available
+      if (currentPageData.total > PAGE_SIZE) {
+        booksLogger.debug('Data loaded for page 0, triggering prefetch', { 
+          total: currentPageData.total,
+          hasMorePages: currentPageData.total > PAGE_SIZE 
+        });
+        triggerPrefetch(currentPageIndex);
+      }
+    }
+  }, [currentPageData, currentPageIndex, isLoading, triggerPrefetch]);
 
   useFocusEffect(
     useCallback(() => {
@@ -229,19 +156,17 @@ export default function TabOneScreen() {
       
       if (!initializedRef.current) {
         initializedRef.current = true;
-        if (!pages[0]) {
-          fetchPage(0, true).then(() => {
-            prefetchNext(0);
-          });
-        } else {
-          prefetchNext(currentPageIndex);
-        }
+        // Don't prefetch on first load - wait for data to arrive
+        booksLogger.debug('Initial focus - waiting for data before prefetch');
       } else {
-        prefetchNext(currentPageIndex);
+        // Only prefetch on subsequent focus if we have data
+        if (currentPageData && typeof currentPageData.total === 'number') {
+          triggerPrefetch(currentPageIndex);
+        }
       }
 
       return cleanup;
-    }, [scheduleRefresh, fetchPage, prefetchNext, pages, currentPageIndex])
+    }, [scheduleRefresh, triggerPrefetch, currentPageIndex, currentPageData])
   );
 
   const onMomentumEnd = useCallback(
@@ -250,22 +175,23 @@ export default function TabOneScreen() {
       const pageIndex = Math.round(x / screenWidth);
       if (pageIndex !== currentPageIndex) {
         setCurrentPageIndex(pageIndex);
+        // Trigger prefetch for new page
+        triggerPrefetch(pageIndex);
       }
-      fetchPage(pageIndex).then(() => prefetchNext(pageIndex));
     },
-    [screenWidth, fetchPage, prefetchNext, currentPageIndex]
+    [screenWidth, currentPageIndex, triggerPrefetch]
   );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      booksLogger.debug('Atualizando grid de livros via pull-to-refresh');
-      await fetchPage(currentPageIndex, true);
-      prefetchNext(currentPageIndex);
+      booksLogger.debug('Refreshing books grid via pull-to-refresh');
+      await refetchCurrentPage();
+      // Prefetch will be triggered by the useEffect above after data loads
     } finally {
       setRefreshing(false);
     }
-  }, [fetchPage, prefetchNext, currentPageIndex]);
+  }, [refetchCurrentPage]);
 
   const handlePressBook = useCallback(
     (b: BookItem) => {
@@ -285,29 +211,31 @@ export default function TabOneScreen() {
 
   const renderPage = useCallback(
     ({ item: pageIndex }: ListRenderItemInfo<number>) => {
-      const items = pages[pageIndex];
-      const isLoading = loadingPages.has(pageIndex) && !items;
+      // For optimized version, we only render the current page
+      const isCurrentPage = pageIndex === currentPageIndex;
+      const items = isCurrentPage ? currentPageItems : [];
+      const isLoadingPage = isCurrentPage && isLoading;
 
       return (
         <View style={[screenStyles.page, { width: screenWidth }]}>
-          {isLoading && (
+          {isLoadingPage && (
             <View style={screenStyles.pageLoading}>
               <ActivityIndicator color={palette.tint} />
               <Text>Carregando...</Text>
             </View>
           )}
-          {!!items && items.length === 0 && (
+          {!isLoadingPage && items.length === 0 && (
             <View style={screenStyles.pageLoading}>
               <Text>Nenhum item nesta página.</Text>
             </View>
           )}
-          {!!items && items.length > 0 && (
+          {!isLoadingPage && items.length > 0 && (
             <GridCards books={items} onPressBook={(b) => handlePressBook(b)} />
           )}
         </View>
       );
     },
-    [pages, loadingPages, screenWidth, handlePressBook]
+    [currentPageIndex, currentPageItems, isLoading, screenWidth, handlePressBook, palette.tint]
   );
 
   const dismissKeyboard = useCallback(() => {
@@ -326,7 +254,7 @@ export default function TabOneScreen() {
     }
     setSearchApplied(trimmed);
     dismissKeyboard();
-    booksLogger.info('Aplicando busca na grade de livros', {
+    booksLogger.info('Applying search to books grid', {
       text: trimmed,
     });
   }, [searchInput, searchApplied, dismissKeyboard]);
@@ -338,7 +266,7 @@ export default function TabOneScreen() {
       setSearchApplied('');
     }
     dismissKeyboard();
-    booksLogger.info('Busca de livros limpa');
+    booksLogger.info('Books search cleared');
   }, [searchApplied, searchInput, dismissKeyboard]);
 
   const onChangeSearch = useCallback((value: string) => {
@@ -367,7 +295,7 @@ export default function TabOneScreen() {
         { paddingTop: insets.top + 6, backgroundColor: palette.background },
       ]}
     >
-      {/* Cabeçalho */}
+      {/* Header */}
       <View style={screenStyles.header}>
         <Text style={screenStyles.title}>
           {searchActive
@@ -440,7 +368,14 @@ export default function TabOneScreen() {
         )}
       </View>
 
-      {/* Silencia mensagens de erro para filtros sem resultado suportado */}
+      {/* Error display */}
+      {error && (
+        <View style={[screenStyles.errorBox, { backgroundColor: 'rgba(255,0,0,0.12)' }]}>
+          <Text style={[screenStyles.errorText, { color: palette.text }]}>
+            {error}
+          </Text>
+        </View>
+      )}
 
       <FlatList
         ref={flatRef}
@@ -477,7 +412,7 @@ export default function TabOneScreen() {
           setSearchApplied('');
           setSearchInput('');
           setSelectedGenre(g);
-          booksLogger.info('Filtro de gênero atualizado', {
+          booksLogger.info('Genre filter updated', {
             genreId: g?.id ?? null,
             name: g?.name ?? null,
           });
@@ -556,7 +491,6 @@ const screenStyles = StyleSheet.create({
     marginBottom: 8,
     padding: 10,
     borderRadius: 8,
-    backgroundColor: 'rgba(255,0,0,0.12)',
   },
   errorText: { fontSize: 13 },
   page: { flex: 1 },
