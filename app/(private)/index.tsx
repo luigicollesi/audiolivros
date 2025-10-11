@@ -1,4 +1,9 @@
 // app/(private)/index.tsx
+import { BookItem, BooksResponse, GridCards } from '@/components/book/BookGrid';
+import { GenreModal, GenreOption } from '@/components/book/GenreModal';
+import { Text, View } from '@/components/shared/Themed';
+import { BASE_URL } from '@/constants/API';
+import { useFocusEffect, useRouter } from 'expo-router';
 import React, {
   useCallback,
   useEffect,
@@ -10,26 +15,23 @@ import {
   ActivityIndicator,
   Dimensions,
   FlatList,
+  Keyboard,
   ListRenderItemInfo,
-  RefreshControl,
-  StyleSheet,
   Platform,
   Pressable,
+  RefreshControl,
+  StyleSheet,
   TextInput,
-  Keyboard,
 } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { Text, View } from '@/components/shared/Themed';
-import { GridCards, BookItem, BooksResponse } from '@/components/book/BookGrid';
-import { GenreModal, GenreOption } from '@/components/book/GenreModal';
-import { BASE_URL } from '@/constants/API';
 
-import { useAuthedFetch } from '@/auth/useAuthedFetch';
-import { useSafeInsets } from '@/hooks/useSafeInsets';
 import { useAuth } from '@/auth/AuthContext';
-import { booksLogger } from '@/utils/logger';
-import Colors from '@/constants/Colors';
+import { useAuthedFetch } from '@/auth/useAuthedFetch';
 import { useColorScheme } from '@/components/shared/useColorScheme';
+import Colors from '@/constants/Colors';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
+import { useSafeInsets } from '@/hooks/useSafeInsets';
+import { useSmartRefresh } from '@/hooks/useSmartRefresh';
+import { booksLogger } from '@/utils/logger';
 
 const PAGE_SIZE = 10;
 const DEFAULT_LANGUAGE = 'pt-BR';
@@ -38,7 +40,12 @@ export default function TabOneScreen() {
   const router = useRouter();
   const insets = useSafeInsets();
   const { fetchJSON } = useAuthedFetch();
-  const { session, refreshSession } = useAuth();
+  const { session } = useAuth();
+  const { scheduleRefresh } = useSmartRefresh();
+  const { cachedFetch, invalidateCache, prefetchUrl } = useCachedFetch({
+    cachePattern: 'books',
+    staleTime: 3 * 60 * 1000, // 3 minutes for books
+  });
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const isDark = scheme === 'dark';
@@ -127,7 +134,7 @@ export default function TabOneScreen() {
       }
 
       try {
-        booksLogger.info('Carregando página de livros', {
+        booksLogger.info('Carregando página de livros (cached)', {
           pageIndex,
           start,
           end,
@@ -135,7 +142,7 @@ export default function TabOneScreen() {
           genreId: selectedGenre?.id ?? null,
           languageId,
         });
-        const data = await fetchJSON<BooksResponse>(url);
+        const data = await cachedFetch<BooksResponse>(url, force);
         const normalizedItems = (data.items ?? []).map((item) => ({
           ...item,
           author:
@@ -184,7 +191,7 @@ export default function TabOneScreen() {
         });
       }
     },
-    [loadingPages, pages, selectedGenre, fetchJSON, languageId, searchApplied]
+    [loadingPages, pages, selectedGenre, cachedFetch, languageId, searchApplied]
   );
 
   const prefetchNext = useCallback(
@@ -200,6 +207,9 @@ export default function TabOneScreen() {
 
   // Ao trocar o gênero: zere dados, volte para página 0 e resete o scroll
   useEffect(() => {
+    // Invalidate cache when filters change
+    invalidateCache();
+    
     setPages({});
     setTotal(null);
     setCurrentPageIndex(0);
@@ -210,11 +220,13 @@ export default function TabOneScreen() {
       prefetchNext(0);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGenre, languageId, searchApplied]);
+  }, [selectedGenre, languageId, searchApplied, invalidateCache]);
 
   useFocusEffect(
     useCallback(() => {
-      refreshSession().catch(() => {});
+      // Smart session refresh - prevents duplicates
+      const cleanup = scheduleRefresh();
+      
       if (!initializedRef.current) {
         initializedRef.current = true;
         if (!pages[0]) {
@@ -228,8 +240,8 @@ export default function TabOneScreen() {
         prefetchNext(currentPageIndex);
       }
 
-      return () => {};
-    }, [refreshSession, fetchPage, prefetchNext, pages, currentPageIndex])
+      return cleanup;
+    }, [scheduleRefresh, fetchPage, prefetchNext, pages, currentPageIndex])
   );
 
   const onMomentumEnd = useCallback(

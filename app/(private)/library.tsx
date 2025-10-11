@@ -1,23 +1,25 @@
+import { useAuth } from '@/auth/AuthContext';
+import { useAuthedFetch } from '@/auth/useAuthedFetch';
+import { BookItem, BooksResponse, GridCards } from '@/components/book/BookGrid';
+import { Text, View } from '@/components/shared/Themed';
+import { useColorScheme } from '@/components/shared/useColorScheme';
+import { BASE_URL } from '@/constants/API';
+import Colors from '@/constants/Colors';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
+import { useSafeInsets } from '@/hooks/useSafeInsets';
+import { useSmartRefresh } from '@/hooks/useSmartRefresh';
+import { favoritesLogger } from '@/utils/logger';
+import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
   FlatList,
   ListRenderItemInfo,
+  Platform,
   RefreshControl,
   StyleSheet,
-  Platform,
 } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { Text, View } from '@/components/shared/Themed';
-import { GridCards, BookItem, BooksResponse } from '@/components/book/BookGrid';
-import { BASE_URL } from '@/constants/API';
-import { useAuthedFetch } from '@/auth/useAuthedFetch';
-import { useSafeInsets } from '@/hooks/useSafeInsets';
-import { useAuth } from '@/auth/AuthContext';
-import { favoritesLogger } from '@/utils/logger';
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/shared/useColorScheme';
 
 const PAGE_SIZE = 10;
 
@@ -27,11 +29,15 @@ export default function LibraryScreen() {
   const { fetchJSON } = useAuthedFetch();
   const {
     session,
-    refreshSession,
     favoritesDirty,
     acknowledgeFavorites,
     markFavoritesDirty,
   } = useAuth();
+  const { scheduleRefresh } = useSmartRefresh();
+  const { cachedFetch, invalidateCache } = useCachedFetch({
+    cachePattern: 'favorites',
+    staleTime: 2 * 60 * 1000, // 2 minutes for favorites (shorter since they change more)
+  });
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
 
@@ -91,13 +97,13 @@ export default function LibraryScreen() {
       const url = `${BASE_URL}/favorites?${params.toString()}`;
 
       try {
-        favoritesLogger.info('Carregando favoritos', {
+        favoritesLogger.info('Carregando favoritos (cached)', {
           pageIndex,
           start,
           end,
           languageId,
         });
-        const data = await fetchJSON<BooksResponse>(url);
+        const data = await cachedFetch<BooksResponse>(url, force);
         const normalizedItems = (data.items ?? []).map((item) => ({
           ...item,
           author:
@@ -136,7 +142,7 @@ export default function LibraryScreen() {
         });
       }
     },
-    [pages, loadingPages, fetchJSON, languageId],
+    [pages, loadingPages, cachedFetch, languageId],
   );
 
   const prefetchNext = useCallback(
@@ -151,6 +157,9 @@ export default function LibraryScreen() {
   );
 
   useEffect(() => {
+    // Invalidate cache when language changes
+    invalidateCache();
+    
     setPages({});
     setTotal(null);
     setCurrentPageIndex(0);
@@ -162,11 +171,15 @@ export default function LibraryScreen() {
       prefetchNext(0);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [languageId]);
+  }, [languageId, invalidateCache]);
 
   useEffect(() => {
     if (!favoritesDirty) return;
     acknowledgeFavorites();
+    
+    // Invalidate cache when favorites change
+    invalidateCache();
+    
     favoritesLogger.debug('Flag de favoritos alterada, atualizando lista');
     setPages({});
     setTotal(null);
@@ -184,11 +197,13 @@ export default function LibraryScreen() {
         favoritesLogger.warn('Falha ao atualizar favoritos após mudança de estado, flag mantida');
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [favoritesDirty, acknowledgeFavorites, fetchPage, prefetchNext, markFavoritesDirty]);
+  }, [favoritesDirty, acknowledgeFavorites, fetchPage, prefetchNext, markFavoritesDirty, invalidateCache]);
 
   useFocusEffect(
     useCallback(() => {
-      refreshSession().catch(() => {});
+      // Smart session refresh - prevents duplicates
+      const cleanup = scheduleRefresh();
+      
       if (!initializedRef.current) {
         initializedRef.current = true;
         if (!pages[0]) {
@@ -202,8 +217,8 @@ export default function LibraryScreen() {
         prefetchNext(currentPageIndex);
       }
 
-      return () => {};
-    }, [refreshSession, fetchPage, prefetchNext, pages, currentPageIndex]),
+      return cleanup;
+    }, [scheduleRefresh, fetchPage, prefetchNext, pages, currentPageIndex]),
   );
 
   const onMomentumEnd = useCallback(

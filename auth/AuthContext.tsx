@@ -1,4 +1,6 @@
 // src/auth/AuthContext.tsx
+import { BASE_URL } from '@/constants/API';
+import { authLogger } from '@/utils/logger';
 import React, {
   createContext,
   useCallback,
@@ -8,8 +10,6 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { BASE_URL } from '@/constants/API';
-import { authLogger } from '@/utils/logger';
 
 type User = {
   email: string;
@@ -36,7 +36,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const REFRESH_THRESHOLD_MS = 5 * 60_000; // renova ~5 minutos antes de expirar
 const MIN_REFRESH_DELAY_MS = 15_000; // evita loops de refresh imediatos
-const AUTO_REFRESH_ENABLED = true;
+const AUTO_REFRESH_ENABLED = false; // Desabilitado - usando useSmartRefresh nas telas
 
 type TimeSourceConfig = {
   url: string;
@@ -156,7 +156,25 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   const refreshSession = useCallback(async () => {
     const current = sessionRef.current;
-    if (!current?.token || refreshingRef.current) return;
+    if (!current?.token || refreshingRef.current) {
+      if (!current?.token) {
+        authLogger.debug('Refresh skipped: no token available');
+      } else {
+        authLogger.debug('Refresh skipped: already in progress');
+      }
+      return;
+    }
+
+    // Log timing information for debugging
+    if (current.expiresAt) {
+      const expiresMs = Date.parse(current.expiresAt);
+      const timeLeft = expiresMs - Date.now();
+      authLogger.info('Starting token refresh', {
+        timeLeftMinutes: Math.round(timeLeft / 1000 / 60),
+        expiresAt: current.expiresAt,
+        caller: new Error().stack?.split('\n')[2]?.trim() // Get caller info
+      });
+    }
 
     refreshingRef.current = true;
     setRefreshing(true);

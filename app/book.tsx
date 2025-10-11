@@ -1,22 +1,24 @@
 // src/app/book.tsx
-import React, { useMemo, useCallback, useState, useEffect } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, useColorScheme } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, useColorScheme } from 'react-native';
 
-import Colors from '@/constants/Colors';
-import { BASE_URL } from '@/constants/API';
-import { useAuthedFetch } from '@/auth/useAuthedFetch';
 import { useAuth } from '@/auth/AuthContext';
-import { useSafeInsets } from '@/hooks/useSafeInsets';
+import { useAuthedFetch } from '@/auth/useAuthedFetch';
 import { Text, View } from '@/components/shared/Themed';
+import { BASE_URL } from '@/constants/API';
+import Colors from '@/constants/Colors';
+import { useOptimizedFavorites } from '@/hooks/useOptimizedFavorites';
+import { useSafeInsets } from '@/hooks/useSafeInsets';
+import { useSmartRefresh } from '@/hooks/useSmartRefresh';
 import { favoritesLogger } from '@/utils/logger';
 
-import { useBookSummary } from '@/features/book/useBookSummary';
-import { useBookAudio } from '@/features/book/useBookAudio';
+import { AUDIO_BAR_HEIGHT, AudioBar } from '@/features/book/AudioBar';
 import { BookInfo } from '@/features/book/BookInfo';
 import { BookSummarySection } from '@/features/book/BookSummarySection';
 import { HighlightedSummary } from '@/features/book/HighlightedSummary';
-import { AudioBar, AUDIO_BAR_HEIGHT } from '@/features/book/AudioBar';
+import { useBookAudio } from '@/features/book/useBookAudio';
+import { useBookSummary } from '@/features/book/useBookSummary';
 
 export default function BookScreen() {
   const { title, author, year, cover_url, language } =
@@ -27,7 +29,9 @@ export default function BookScreen() {
   const insets = useSafeInsets();
 
   const { fetchJSON, authedFetch } = useAuthedFetch();
-  const { session, refreshSession, markFavoritesDirty } = useAuth();
+  const { session, markFavoritesDirty } = useAuth();
+  const { scheduleRefresh } = useSmartRefresh();
+  const { toggleFavorite, isPending } = useOptimizedFavorites();
   const token = session?.token ?? '';
 
   const imageUri = useMemo(() => {
@@ -53,7 +57,12 @@ export default function BookScreen() {
 
   const { summary, loading, error } = useBookSummary(summariesUrl, fetchJSON);
   const [favorite, setFavorite] = useState<boolean>(false);
-  const [favoriteLoading, setFavoriteLoading] = useState(false);
+  
+  // Create consistent book ID for optimized favorites
+  const bookId = useMemo(() => {
+    if (!title || !author) return '';
+    return `${title}|||${author}|||${lang}`;
+  }, [title, author, lang]);
 
   const {
     audioReady,
@@ -75,9 +84,10 @@ export default function BookScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      refreshSession().catch(() => {});
-      return () => {};
-    }, [refreshSession])
+      // Smart session refresh - prevents duplicates
+      const cleanup = scheduleRefresh();
+      return cleanup;
+    }, [scheduleRefresh])
   );
 
   const [summaryExpanded, setSummaryExpanded] = useState(false);
@@ -103,45 +113,45 @@ export default function BookScreen() {
       Alert.alert('Favoritos', 'Faça login para gerenciar favoritos.');
       return;
     }
+
     try {
-      setFavoriteLoading(true);
-      favoritesLogger.info('Atualizando favorito do livro', {
-        title,
-        author,
-        action: favorite ? 'remove' : 'add',
-      });
-      const body = JSON.stringify({
+      await toggleFavorite({
         title,
         author,
         languageId: lang,
+        currentState: favorite,
+        onOptimisticUpdate: (newState) => {
+          setFavorite(newState);
+          favoritesLogger.info('Optimistic favorite update', {
+            title,
+            author,
+            favorite: newState,
+          });
+        },
+        onError: (error, rollbackState) => {
+          setFavorite(rollbackState);
+          Alert.alert('Favoritos', error.message);
+          favoritesLogger.error('Falha ao atualizar favorito', {
+            title,
+            author,
+            error: error.message,
+          });
+        },
       });
-      const response = await authedFetch(`${BASE_URL}/favorites`, {
-        method: favorite ? 'DELETE' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data?.message || 'Não foi possível atualizar favorito.');
-      }
-      setFavorite(!favorite);
+      
       favoritesLogger.info('Favorito atualizado com sucesso', {
         title,
         author,
         favorite: !favorite,
       });
-      markFavoritesDirty();
     } catch (err: any) {
-      Alert.alert('Favoritos', String(err?.message || err));
-      favoritesLogger.error('Falha ao atualizar favorito', {
+      // Error already handled by onError callback
+      favoritesLogger.debug('Toggle favorite completed with error handling', {
         title,
         author,
-        error: err?.message || err,
       });
-    } finally {
-      setFavoriteLoading(false);
     }
-  }, [title, author, lang, token, authedFetch, favorite, markFavoritesDirty]);
+  }, [title, author, lang, token, favorite, toggleFavorite]);
 
   const scrollContentStyle = useMemo(
     () => [
@@ -168,7 +178,7 @@ export default function BookScreen() {
           backgroundColor={theme.bookCard}
           favorite={favorite}
           onToggleFavorite={handleToggleFavorite}
-          disabling={favoriteLoading || loading || !summary}
+          disabling={isPending(title, author, lang) || loading || !summary}
         />
 
         <BookSummarySection

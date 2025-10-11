@@ -7,12 +7,13 @@ import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect, useMemo } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { useColorScheme } from '@/components/shared/useColorScheme';
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
+import { useColorScheme } from '@/components/shared/useColorScheme';
+import { useRequestMonitor } from '@/hooks/useRequestMonitor';
 
-import { Provider } from 'react-redux';
 import { store } from '@/store';
 import { configureLogger } from '@/utils/logger';
+import { Provider } from 'react-redux';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -44,6 +45,10 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+  
+  // Enable request monitoring in development
+  useRequestMonitor(__DEV__);
+  
   return (
     <Provider store={store}>
       <AuthProvider>
