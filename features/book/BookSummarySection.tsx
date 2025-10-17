@@ -2,6 +2,7 @@ import React, { useCallback, useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet } from 'react-native';
 import { Text, View } from '@/components/shared/Themed';
 import { HighlightedSummary } from './HighlightedSummary';
+import { useTranslation } from '@/i18n/LanguageContext';
 
 type Props = {
   loading: boolean;
@@ -22,6 +23,7 @@ export function BookSummarySection({
   expanded,
   onToggleExpanded,
 }: Props) {
+  const { t } = useTranslation();
   const containerStyle = useMemo(
     () => [
       styles.container,
@@ -39,11 +41,11 @@ export function BookSummarySection({
 
   return (
     <Pressable style={containerStyle} onPress={handlePress}>
-      <Text style={styles.title}>Leitura em voz</Text>
+      <Text style={styles.title}>{t('book.summaryTitle')}</Text>
       {loading && (
         <View style={styles.loadingRow}>
           <ActivityIndicator />
-          <Text style={styles.meta}>Carregando resumo...</Text>
+          <Text style={styles.meta}>{t('book.summaryLoading')}</Text>
         </View>
       )}
       {error && !loading && (
@@ -57,7 +59,7 @@ export function BookSummarySection({
         />
       )}
       <Text style={styles.hint}>
-        {expanded ? 'Toque para recolher' : 'Toque para expandir e facilitar a leitura'}
+        {expanded ? t('book.summaryCollapse') : t('book.summaryExpand')}
       </Text>
     </Pressable>
   );

@@ -1,0 +1,232 @@
+import type { LanguageCode, TranslationDictionary } from './types';
+
+export const SUPPORTED_LANGUAGES: LanguageCode[] = ['pt-BR', 'en-US'];
+
+export const LANGUAGE_LABELS: Record<LanguageCode, string> = {
+  'pt-BR': 'Português (Brasil)',
+  'en-US': 'English (US)',
+};
+
+export const DEFAULT_LANGUAGE: LanguageCode = 'pt-BR';
+
+const messages: Record<LanguageCode, TranslationDictionary> = {
+  'pt-BR': {
+    'common.confirm': 'Confirmar',
+    'common.cancel': 'Cancelar',
+    'common.loading': 'Carregando...',
+    'common.empty': 'Nenhum item encontrado.',
+    'common.error': 'Ocorreu um erro inesperado.',
+    'common.language.ptBR': 'Português (Brasil)',
+    'common.language.enUS': 'English (US)',
+    'common.terms': 'Ao continuar, você concorda com nossos Termos e Política de Privacidade.',
+    'common.dismiss': 'Fechar',
+
+    'login.title': 'Bem-vindo',
+    'login.subtitle': 'Entre para continuar',
+    'login.emailHeading': 'Entrar com email e senha',
+    'login.emailPlaceholder': 'email@exemplo.com',
+    'login.passwordPlaceholder': 'Senha',
+    'login.forgotPassword': 'Esqueci minha senha',
+    'login.submit': 'Entrar',
+    'login.createAccount': 'Criar conta com email',
+    'login.or': 'ou',
+    'login.authenticating': 'Autenticando…',
+    'login.languageButton': 'Idioma',
+
+    'phone.title': 'Verificação de telefone',
+    'phone.subtitle': 'Insira seu número para continuar',
+    'phone.dddLabel': 'DDD',
+    'phone.numberLabel': 'Número',
+    'phone.submit': 'Enviar código',
+    'phone.resend': 'Reenviar código',
+    'phone.pending': 'Enviando...',
+    'phone.infoPending': 'Precisamos confirmar seu telefone para liberar o acesso.',
+    'phone.expired': 'Fluxo expirado. Faça login novamente.',
+    'phone.invalidDDD': 'Informe o DDD com 2 dígitos.',
+    'phone.invalidPhone': 'Informe o telefone no formato XXXXX-XXXX.',
+    'phone.sentInfo': 'Enviamos um código de 5 dígitos para o número informado.',
+    'phone.ddPlaceholder': 'DD',
+    'phone.numberPlaceholder': 'XXXXX-XXXX',
+
+    'code.title': 'Confirme o código',
+    'code.subtitle': 'Enviamos um código por SMS',
+    'code.instructions': 'Insira os 5 dígitos recebidos para concluir sua autenticação.',
+    'code.inputPlaceholder': 'Código de verificação',
+    'code.submit': 'Confirmar',
+    'code.resend': 'Reenviar código',
+    'code.expired': 'Fluxo expirado. Faça login novamente.',
+    'code.invalidLength': 'Digite os 5 dígitos do código.',
+    'code.sentTo': 'Enviamos para {phone}',
+    'code.back': 'Corrigir telefone',
+
+    'home.heading.default': 'Mais recentes',
+    'home.heading.search': 'Resultado: "{text}"',
+    'home.filter': 'Filtrar',
+    'home.searchPlaceholder': 'Buscar por título ou autor',
+    'home.searchSubmit': 'Buscar',
+    'home.searchClear': 'Limpar',
+    'home.keyboardDismiss': 'Fechar',
+    'home.error': 'Não foi possível carregar os livros.',
+    'home.loading': 'Carregando...',
+    'home.empty': 'Nenhum item nesta página.',
+    'home.totalSingular': '{count} livro no total',
+    'home.totalPlural': '{count} livros no total',
+
+    'library.heading': 'Meus Favoritos',
+    'library.empty': 'Nenhum favorito encontrado.',
+    'library.loading': 'Carregando favoritos...',
+    'library.emptyPage': 'Nenhum favorito nesta página.',
+    'library.none': 'Nenhum livro nos favoritos ainda.',
+    'library.totalSingular': '{count} livro favoritado',
+    'library.totalPlural': '{count} livros favoritados',
+
+    'book.author': 'Autor',
+    'book.year': 'Ano',
+    'book.language': 'Idioma',
+    'book.summaryTitle': 'Leitura em voz',
+    'book.summaryLoading': 'Carregando resumo...',
+    'book.summaryExpand': 'Toque para expandir e facilitar a leitura',
+    'book.summaryCollapse': 'Toque para recolher',
+    'book.audioLoading': 'Carregando áudio...',
+    'book.noCover': 'Sem capa',
+    'genre.title': 'Selecione um gênero',
+    'genre.clear': 'Limpar filtro',
+    'genre.close': 'Fechar',
+
+    'profile.language': 'Idioma preferido',
+    'profile.languageDescription': 'Escolha o idioma da interface',
+    'profile.languageUpdated': 'Idioma atualizado com sucesso.',
+    'profile.languageButton': 'Idioma',
+    'profile.email': 'Email',
+    'profile.emailMissing': 'Não informado',
+    'profile.phone': 'Telefone',
+    'profile.phoneMissing': 'Não verificado',
+    'profile.changePhone': 'Alterar telefone',
+    'profile.signOut': 'Sair',
+    'profile.delete': 'Excluir conta',
+    'profile.greeting': 'Olá!',
+    'profile.signOutConfirmTitle': 'Sair',
+    'profile.signOutConfirmMessage': 'Deseja encerrar a sessão?',
+    'profile.cancel': 'Cancelar',
+  },
+  'en-US': {
+    'common.confirm': 'Confirm',
+    'common.cancel': 'Cancel',
+    'common.loading': 'Loading...',
+    'common.empty': 'No items found.',
+    'common.error': 'An unexpected error occurred.',
+    'common.language.ptBR': 'Portuguese (Brazil)',
+    'common.language.enUS': 'English (US)',
+    'common.terms': 'By continuing, you agree to our Terms and Privacy Policy.',
+    'common.dismiss': 'Close',
+
+    'login.title': 'Welcome',
+    'login.subtitle': 'Sign in to continue',
+    'login.emailHeading': 'Sign in with email and password',
+    'login.emailPlaceholder': 'email@example.com',
+    'login.passwordPlaceholder': 'Password',
+    'login.forgotPassword': 'Forgot my password',
+    'login.submit': 'Sign in',
+    'login.createAccount': 'Create account with email',
+    'login.or': 'or',
+    'login.authenticating': 'Authenticating…',
+    'login.languageButton': 'Language',
+
+    'phone.title': 'Phone verification',
+    'phone.subtitle': 'Enter your number to continue',
+    'phone.dddLabel': 'Area',
+    'phone.numberLabel': 'Number',
+    'phone.submit': 'Send code',
+    'phone.resend': 'Resend code',
+    'phone.pending': 'Sending...',
+    'phone.infoPending': 'We need to confirm your phone to grant access.',
+    'phone.expired': 'Flow expired. Please sign in again.',
+    'phone.invalidDDD': 'Enter the 2-digit area code.',
+    'phone.invalidPhone': 'Enter the phone number in the XXXXX-XXXX format.',
+    'phone.sentInfo': 'We sent a 5-digit code to the number provided.',
+    'phone.ddPlaceholder': 'Area',
+    'phone.numberPlaceholder': 'XXXXX-XXXX',
+
+    'code.title': 'Confirm the code',
+    'code.subtitle': 'We sent you an SMS code',
+    'code.instructions': 'Enter the 5 digits you received to finish your sign-in.',
+    'code.inputPlaceholder': 'Verification code',
+    'code.submit': 'Confirm code',
+    'code.resend': 'Resend code',
+    'code.expired': 'Flow expired. Please sign in again.',
+    'code.invalidLength': 'Enter the 5-digit code.',
+    'code.sentTo': 'Sent to {phone}',
+    'code.back': 'Fix phone number',
+
+    'home.heading.default': 'Latest',
+    'home.heading.search': 'Result: "{text}"',
+    'home.filter': 'Filter',
+    'home.searchPlaceholder': 'Search by title or author',
+    'home.searchSubmit': 'Search',
+    'home.searchClear': 'Clear',
+    'home.keyboardDismiss': 'Close',
+    'home.error': 'Unable to load books.',
+    'home.loading': 'Loading...',
+    'home.empty': 'No items on this page.',
+    'home.totalSingular': '{count} book in total',
+    'home.totalPlural': '{count} books in total',
+
+    'library.heading': 'My Favorites',
+    'library.empty': 'No favorites found.',
+    'library.loading': 'Loading favorites...',
+    'library.emptyPage': 'No favorites on this page.',
+    'library.none': 'No favorite books yet.',
+    'library.totalSingular': '{count} favorite book',
+    'library.totalPlural': '{count} favorite books',
+
+    'book.author': 'Author',
+    'book.year': 'Year',
+    'book.language': 'Language',
+    'book.summaryTitle': 'Voice reading',
+    'book.summaryLoading': 'Loading summary...',
+    'book.summaryExpand': 'Tap to expand and improve readability',
+    'book.summaryCollapse': 'Tap to collapse',
+    'book.audioLoading': 'Loading audio...',
+    'book.noCover': 'No cover',
+    'genre.title': 'Choose a genre',
+    'genre.clear': 'Clear filter',
+    'genre.close': 'Close',
+
+    'profile.language': 'Preferred language',
+    'profile.languageDescription': 'Choose the interface language',
+    'profile.languageUpdated': 'Language updated successfully.',
+    'profile.languageButton': 'Language',
+    'profile.email': 'Email',
+    'profile.emailMissing': 'Not provided',
+    'profile.phone': 'Phone',
+    'profile.phoneMissing': 'Not verified',
+    'profile.changePhone': 'Update phone',
+    'profile.signOut': 'Sign out',
+    'profile.delete': 'Delete account',
+    'profile.greeting': 'Hello!',
+    'profile.signOutConfirmTitle': 'Sign out',
+    'profile.signOutConfirmMessage': 'Do you want to end your session?',
+    'profile.cancel': 'Cancel',
+  },
+};
+
+export function translate(language: LanguageCode, key: string, params?: Record<string, string | number>) {
+  const fallback = messages[DEFAULT_LANGUAGE][key];
+  const template = messages[language]?.[key] ?? fallback ?? key;
+  if (!params) return template;
+  return Object.entries(params).reduce((acc, [paramKey, value]) => {
+    return acc.replace(new RegExp(`{${paramKey}}`, 'g'), String(value));
+  }, template);
+}
+
+export function normalizeLanguage(language?: string | null): LanguageCode {
+  if (!language) return DEFAULT_LANGUAGE;
+  const normalized = language === 'en' ? 'en-US' : language === 'pt' ? 'pt-BR' : language;
+  return (SUPPORTED_LANGUAGES as readonly string[]).includes(normalized) ? (normalized as LanguageCode) : DEFAULT_LANGUAGE;
+}
+
+export function formatLanguageLabel(language: LanguageCode) {
+  return LANGUAGE_LABELS[language] ?? language;
+}
+
+export default messages;

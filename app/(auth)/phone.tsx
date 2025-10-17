@@ -19,8 +19,8 @@ import { RootState } from '@/store';
 import { authLogger } from '@/utils/logger';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
-
-const DEFAULT_LANGUAGE = 'pt-BR';
+import { useTranslation } from '@/i18n/LanguageContext';
+import { normalizeLanguage } from '@/i18n/translations';
 
 const sanitizeDigits = (value: string, max: number) =>
   value.replace(/\D/g, '').slice(0, max);
@@ -35,6 +35,7 @@ export default function PhoneScreen() {
   const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
   const placeholderColor = isDark ? '#9ca3af' : '#6b7280';
   const primaryTextColor = isDark ? '#000' : '#fff';
+  const { language: baseLanguage, t } = useTranslation();
 
   const pending = useSelector((s: RootState) => s.auth?.pendingPhone);
   const globalError = useSelector((s: RootState) => s.auth?.error ?? null);
@@ -43,17 +44,15 @@ export default function PhoneScreen() {
   const [number, setNumber] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(
-    pending ? 'Precisamos confirmar seu telefone para liberar o acesso.' : null
-  );
+  const [infoState, setInfoState] = useState<'pending' | 'sent' | null>(pending ? 'pending' : null);
 
   const language = useMemo(() => {
     const preference =
       typeof session?.user?.language === 'string'
         ? session.user.language.trim()
         : '';
-    return preference || DEFAULT_LANGUAGE;
-  }, [session?.user?.language]);
+    return normalizeLanguage(preference || baseLanguage);
+  }, [session?.user?.language, baseLanguage]);
 
   useEffect(() => {
     if (!pending) {
@@ -78,7 +77,7 @@ export default function PhoneScreen() {
 
   const handleSubmit = useCallback(async () => {
     if (!pending?.pendingToken || !pending?.machineCode) {
-      setError('Fluxo expirado. Faça login novamente.');
+      setError(t('phone.expired'));
       router.replace('/(auth)/login');
       return;
     }
@@ -87,16 +86,16 @@ export default function PhoneScreen() {
     const digits = sanitizeDigits(number, 9);
 
     if (sanitizedDDD.length !== 2) {
-      setError('Informe o DDD com 2 dígitos.');
+      setError(t('phone.invalidDDD'));
       return;
     }
     if (digits.length !== 9) {
-      setError('Informe o telefone no formato XXXXX-XXXX.');
+      setError(t('phone.invalidPhone'));
       return;
     }
 
     setError(null);
-    setInfo(null);
+    setInfoState(null);
     setSubmitting(true);
 
     const fullPhone = `+55${sanitizedDDD}${digits}`;
@@ -124,7 +123,7 @@ export default function PhoneScreen() {
         type: 'auth/phoneRequestSuccess',
         payload: { phone: fullPhone, ddd: sanitizedDDD },
       });
-      setInfo('Enviamos um código de 5 dígitos para o número informado.');
+      setInfoState('sent');
       authLogger.info('Código de telefone enviado com sucesso', {
         phone: fullPhone,
       });
@@ -148,10 +147,8 @@ export default function PhoneScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>Confirme seu telefone</Text>
-          <Text style={styles.subtitle}>
-            Informe seu número com DDD para proteger sua conta.
-          </Text>
+          <Text style={styles.title}>{t('phone.title')}</Text>
+          <Text style={styles.subtitle}>{t('phone.subtitle')}</Text>
         </View>
 
         <View style={styles.inputRow}>
@@ -162,7 +159,7 @@ export default function PhoneScreen() {
             style={[styles.dddInput, styles.textInput]}
             keyboardType="number-pad"
             maxLength={2}
-            placeholder="DD"
+            placeholder={t('phone.ddPlaceholder')}
             placeholderTextColor={placeholderColor}
             value={ddd}
             onChangeText={onChangeDDD}
@@ -171,14 +168,18 @@ export default function PhoneScreen() {
             style={[styles.phoneInput, styles.textInput]}
             keyboardType="number-pad"
             maxLength={10}
-            placeholder="XXXXX-XXXX"
+            placeholder={t('phone.numberPlaceholder')}
             placeholderTextColor={placeholderColor}
             value={number}
             onChangeText={onChangeNumber}
           />
         </View>
 
-        {info && <Text style={styles.info}>{info}</Text>}
+        {infoState && (
+          <Text style={styles.info}>
+            {infoState === 'pending' ? t('phone.infoPending') : t('phone.sentInfo')}
+          </Text>
+        )}
         {error && <Text style={styles.error}>{error}</Text>}
         {globalError && <Text style={styles.error}>{globalError}</Text>}
 
@@ -190,7 +191,7 @@ export default function PhoneScreen() {
           {submitting ? (
             <ActivityIndicator color={primaryTextColor} />
           ) : (
-            <Text style={styles.submitBtnText}>Enviar código</Text>
+            <Text style={styles.submitBtnText}>{t('phone.submit')}</Text>
           )}
         </Pressable>
       </KeyboardAvoidingView>

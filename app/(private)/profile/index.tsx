@@ -15,11 +15,8 @@ import { useColorScheme } from '@/components/shared/useColorScheme';
 import { useAuth } from '@/auth/AuthContext';
 import { useAuthedFetch } from '@/auth/useAuthedFetch';
 import { BASE_URL } from '@/constants/API';
-
-const LANGUAGE_OPTIONS: Array<{ id: 'pt-BR' | 'en-US'; label: string }> = [
-  { id: 'pt-BR', label: 'Português (Brasil)' },
-  { id: 'en-US', label: 'English (US)' },
-];
+import { useTranslation } from '@/i18n/LanguageContext';
+import { formatLanguageLabel, normalizeLanguage } from '@/i18n/translations';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -29,23 +26,32 @@ export default function ProfileScreen() {
   const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
   const { session, signOut, refreshSession } = useAuth();
   const { authedFetch } = useAuthedFetch();
+  const { language: currentLanguage, setLanguage, availableLanguages, t } = useTranslation();
 
   const [languagePopoverVisible, setLanguagePopoverVisible] = useState(false);
   const [languageSubmitting, setLanguageSubmitting] = useState(false);
 
   const user = session?.user;
 
+  const languageOptions = useMemo(
+    () =>
+      availableLanguages.map((code) => ({
+        id: code,
+        label: formatLanguageLabel(code),
+      })),
+    [availableLanguages],
+  );
+
   const languageLabel = useMemo(() => {
-    const current = user?.language ?? 'pt-BR';
-    const option =
-      LANGUAGE_OPTIONS.find((item) => item.id === current) ?? LANGUAGE_OPTIONS[0];
-    return option.label;
-  }, [user?.language]);
+    const current = normalizeLanguage(user?.language ?? currentLanguage);
+    return formatLanguageLabel(current);
+  }, [user?.language, currentLanguage]);
 
   const handleSelectLanguage = useCallback(
     async (languageId: 'pt-BR' | 'en-US') => {
       if (languageSubmitting) return;
-      if (languageId === (user?.language as 'pt-BR' | 'en-US' | undefined)) {
+      const current = normalizeLanguage(user?.language ?? currentLanguage);
+      if (languageId === current) {
         setLanguagePopoverVisible(false);
         return;
       }
@@ -61,31 +67,32 @@ export default function ProfileScreen() {
           throw new Error(data?.message || 'Não foi possível atualizar o idioma.');
         }
         await refreshSession();
-        Alert.alert('Idioma atualizado', 'Suas preferências foram salvas.');
+        setLanguage(languageId);
+        Alert.alert(t('profile.language'), t('profile.languageUpdated'));
       } catch (err: any) {
-        Alert.alert('Idioma', String(err?.message || err || 'Falha ao atualizar idioma.'));
+        Alert.alert(t('profile.language'), String(err?.message || err || t('common.error')));
       } finally {
         setLanguageSubmitting(false);
         setLanguagePopoverVisible(false);
       }
     },
-    [authedFetch, refreshSession, user?.language, languageSubmitting],
+    [authedFetch, refreshSession, user?.language, languageSubmitting, setLanguage, t, currentLanguage],
   );
 
   const handleSignOut = useCallback(() => {
-    Alert.alert('Sair', 'Deseja encerrar a sessão?', [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert(t('profile.signOutConfirmTitle'), t('profile.signOutConfirmMessage'), [
+      { text: t('profile.cancel'), style: 'cancel' },
       {
-        text: 'Sair',
+        text: t('profile.signOut'),
         style: 'destructive',
         onPress: () => {
           signOut();
         },
       },
     ]);
-  }, [signOut]);
+  }, [signOut, t]);
 
-  const name = user?.name?.trim() || user?.email || 'Olá!';
+  const name = user?.name?.trim() || user?.email || t('profile.greeting');
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -94,17 +101,17 @@ export default function ProfileScreen() {
           <Text style={styles.title}>{name}</Text>
 
           <View style={styles.infoGroup}>
-            <Text style={styles.infoLabel}>Email</Text>
-            <Text style={styles.infoValue}>{user?.email ?? 'Não informado'}</Text>
+            <Text style={styles.infoLabel}>{t('profile.email')}</Text>
+            <Text style={styles.infoValue}>{user?.email ?? t('profile.emailMissing')}</Text>
           </View>
 
           <View style={styles.infoGroup}>
-            <Text style={styles.infoLabel}>Telefone</Text>
-            <Text style={styles.infoValue}>{user?.phone ?? 'Não verificado'}</Text>
+            <Text style={styles.infoLabel}>{t('profile.phone')}</Text>
+            <Text style={styles.infoValue}>{user?.phone ?? t('profile.phoneMissing')}</Text>
           </View>
 
           <View style={styles.infoGroup}>
-            <Text style={styles.infoLabel}>Idioma preferido</Text>
+            <Text style={styles.infoLabel}>{t('profile.language')}</Text>
             <View style={styles.languageWrapper}>
               <Pressable
                 style={styles.languageButton}
@@ -125,8 +132,8 @@ export default function ProfileScreen() {
                     onPress={() => setLanguagePopoverVisible(false)}
                   />
                   <View style={styles.popover}>
-                    {LANGUAGE_OPTIONS.map((option) => {
-                      const selected = option.id === user?.language;
+                    {languageOptions.map((option) => {
+                      const selected = option.id === normalizeLanguage(user?.language ?? currentLanguage);
                       return (
                         <Pressable
                           key={option.id}
@@ -157,7 +164,7 @@ export default function ProfileScreen() {
             style={styles.primaryButton}
             onPress={() => router.push('/(private)/profile/phone')}
           >
-            <Text style={styles.primaryButtonText}>Alterar telefone</Text>
+            <Text style={styles.primaryButtonText}>{t('profile.changePhone')}</Text>
           </Pressable>
         </View>
 
@@ -165,14 +172,14 @@ export default function ProfileScreen() {
           style={styles.signOutButton}
           onPress={handleSignOut}
         >
-          <Text style={styles.signOutText}>Sair</Text>
+          <Text style={styles.signOutText}>{t('profile.signOut')}</Text>
         </Pressable>
 
         <Pressable
           style={styles.deleteButton}
           onPress={() => router.push('/(private)/profile/delete')}
         >
-          <Text style={styles.deleteButtonText}>Excluir conta</Text>
+          <Text style={styles.deleteButtonText}>{t('profile.delete')}</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>

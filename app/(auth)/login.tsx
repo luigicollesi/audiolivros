@@ -17,6 +17,8 @@ import { useAuth } from '@/auth/AuthContext';
 import { RootState } from '@/store';
 import { BASE_URL } from '@/constants/API';
 import { authLogger } from '@/utils/logger';
+import { useTranslation } from '@/i18n/LanguageContext';
+import { formatLanguageLabel } from '@/i18n/translations';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
 
@@ -44,12 +46,14 @@ export default function LoginScreen() {
   const dispatch = useDispatch();
   const router = useRouter();
   const { signIn } = useAuth();
+  const { language, setLanguage, availableLanguages, t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const isDark = scheme === 'dark';
   const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
   const placeholderColor = isDark ? '#9ca3af' : '#6b7280';
   const primaryTextColor = isDark ? '#000' : '#fff';
+  const [languagePopoverVisible, setLanguagePopoverVisible] = useState(false);
 
   const loading = useSelector((s: RootState) => Boolean(s.auth?.loading));
   const error = useSelector((s: RootState) => s.auth?.error ?? null);
@@ -191,16 +195,50 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Bem-vindo</Text>
-          <Text style={styles.subtitle}>Entre para continuar</Text>
+          <Pressable
+            style={styles.languageButton}
+            onPress={() => setLanguagePopoverVisible((prev) => !prev)}
+            hitSlop={8}
+          >
+            <Text style={styles.languageButtonText}>{t('login.languageButton')} · {formatLanguageLabel(language)}</Text>
+          </Pressable>
+          {languagePopoverVisible && (
+            <>
+              <Pressable
+                style={styles.languageOverlay}
+                onPress={() => setLanguagePopoverVisible(false)}
+              />
+              <View style={styles.languagePopover}>
+                {availableLanguages.map((code) => {
+                  const selected = code === language;
+                  return (
+                    <Pressable
+                      key={code}
+                      style={[styles.languageOption, selected && styles.languageOptionSelected]}
+                      onPress={() => {
+                        setLanguage(code);
+                        setLanguagePopoverVisible(false);
+                      }}
+                    >
+                      <Text style={[styles.languageOptionText, selected && styles.languageOptionTextSelected]}>
+                        {formatLanguageLabel(code)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
+          )}
+          <Text style={styles.title}>{t('login.title')}</Text>
+          <Text style={styles.subtitle}>{t('login.subtitle')}</Text>
         </View>
 
         <View style={styles.body}>
           <View style={styles.formCard}>
-            <Text style={styles.formTitle}>Entrar com email e senha</Text>
+            <Text style={styles.formTitle}>{t('login.emailHeading')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="email@exemplo.com"
+              placeholder={t('login.emailPlaceholder')}
               placeholderTextColor={placeholderColor}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -213,7 +251,7 @@ export default function LoginScreen() {
             />
           <TextInput
             style={styles.input}
-            placeholder="Senha"
+            placeholder={t('login.passwordPlaceholder')}
             placeholderTextColor={placeholderColor}
             secureTextEntry
             value={password}
@@ -223,7 +261,7 @@ export default function LoginScreen() {
             }}
           />
           <Pressable style={styles.linkRight} onPress={() => router.push('/(auth)/forgot-email')}>
-            <Text style={styles.linkRightText}>Esqueci minha senha</Text>
+            <Text style={styles.linkRightText}>{t('login.forgotPassword')}</Text>
           </Pressable>
           {localError && <Text style={styles.error}>{localError}</Text>}
             <Pressable
@@ -234,20 +272,20 @@ export default function LoginScreen() {
               {localLoading ? (
                 <ActivityIndicator color={primaryTextColor} />
               ) : (
-                <Text style={styles.primaryBtnText}>Entrar</Text>
+                <Text style={styles.primaryBtnText}>{t('login.submit')}</Text>
               )}
             </Pressable>
             <Pressable
               style={styles.secondaryBtn}
               onPress={() => router.push('/(auth)/email')}
             >
-              <Text style={styles.secondaryBtnText}>Criar conta com email</Text>
+              <Text style={styles.secondaryBtnText}>{t('login.createAccount')}</Text>
             </Pressable>
           </View>
 
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>ou</Text>
+            <Text style={styles.dividerText}>{t('login.or')}</Text>
             <View style={styles.dividerLine} />
           </View>
 
@@ -281,7 +319,7 @@ export default function LoginScreen() {
           {loading && (
             <View style={styles.loadingRow}>
               <ActivityIndicator color={palette.tint} />
-              <Text style={styles.loadingText}>Autenticando…</Text>
+              <Text style={styles.loadingText}>{t('login.authenticating')}</Text>
             </View>
           )}
 
@@ -290,7 +328,7 @@ export default function LoginScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            Ao continuar, você concorda com nossos Termos e Política de Privacidade.
+            {t('common.terms')}
           </Text>
         </View>
       </View>
@@ -310,7 +348,63 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       justifyContent: 'center',
       backgroundColor: colors.background,
     },
-    header: { width: '100%', alignItems: 'center', marginBottom: 16, gap: 8 },
+    header: { width: '100%', alignItems: 'center', marginBottom: 16, gap: 8, position: 'relative', paddingTop: 32 },
+    languageButton: {
+      position: 'absolute',
+      right: 0,
+      top: 0,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderRadius: 16,
+      backgroundColor: colors.bookCard,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.tabIconDefault,
+    },
+    languageButtonText: {
+      fontSize: 12,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    languagePopover: {
+      position: 'absolute',
+      right: 0,
+      top: 38,
+      borderRadius: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.tabIconDefault,
+      backgroundColor: isDark ? 'rgba(24,24,24,0.95)' : 'rgba(255,255,255,0.97)',
+      paddingVertical: 4,
+      width: 200,
+      shadowColor: '#000',
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 8,
+      zIndex: 99,
+    },
+    languageOverlay: {
+      position: 'absolute',
+      top: -2000,
+      left: -2000,
+      right: -2000,
+      bottom: -2000,
+      backgroundColor: 'rgba(0,0,0,0.35)',
+    },
+    languageOption: {
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+    },
+    languageOptionSelected: {
+      backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(47,149,220,0.12)',
+    },
+    languageOptionText: {
+      fontSize: 14,
+      color: colors.text,
+    },
+    languageOptionTextSelected: {
+      fontWeight: '600',
+      color: colors.tint,
+    },
     title: { fontSize: 28, fontWeight: '800', color: colors.text },
     subtitle: { fontSize: 14, color: colors.text, opacity: 0.7, textAlign: 'center' },
     body: { width: '100%', gap: 16, alignItems: 'center' },

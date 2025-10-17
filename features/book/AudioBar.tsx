@@ -4,6 +4,7 @@ import Slider from '@react-native-community/slider';
 import { Text, View } from '@/components/shared/Themed';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
+import { useTranslation } from '@/i18n/LanguageContext';
 
 export type AudioBarProps = {
   bottomInset: number;
@@ -54,6 +55,7 @@ export function AudioBar({
   const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
   const accent = palette.tint;
   const [ratePickerVisible, setRatePickerVisible] = useState(false);
+  const { t } = useTranslation();
 
   const rateButtons = useMemo(
     () =>
@@ -112,7 +114,7 @@ export function AudioBar({
         {audioLoading && (
           <View style={styles.loadingRow}>
             <ActivityIndicator color={accent} />
-            <Text style={styles.meta}>Carregando áudio...</Text>
+            <Text style={styles.meta}>{t('book.audioLoading')}</Text>
           </View>
         )}
 

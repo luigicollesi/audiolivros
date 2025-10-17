@@ -31,10 +31,10 @@ import { useOptimizedBooks } from '@/hooks/useOptimizedBooks';
 import { useSafeInsets } from '@/hooks/useSafeInsets';
 import { useSmartRefresh } from '@/hooks/useSmartRefresh';
 import { booksLogger } from '@/utils/logger';
+import { useTranslation } from '@/i18n/LanguageContext';
+import { normalizeLanguage } from '@/i18n/translations';
 
 const PAGE_SIZE = 10;
-const DEFAULT_LANGUAGE = 'pt-BR';
-
 export default function TabOneScreen() {
   const router = useRouter();
   const insets = useSafeInsets();
@@ -47,6 +47,7 @@ export default function TabOneScreen() {
   const accent = palette.tint;
   const placeholderColor = isDark ? '#9ca3af' : '#6b7280';
   const primaryTextColor = isDark ? '#000' : '#fff';
+  const { language: baseLanguage, t } = useTranslation();
 
   const [selectedGenre, setSelectedGenre] = useState<GenreOption | null>(null);
   const [showGenreModal, setShowGenreModal] = useState(false);
@@ -61,12 +62,11 @@ export default function TabOneScreen() {
   const initializedRef = useRef(false);
   const searchInputRef = useRef<TextInput>(null);
 
-  const languagePreference = session?.user?.language;
-  const languageId = useMemo(() => {
-    const normalized =
-      typeof languagePreference === 'string' ? languagePreference.trim() : '';
-    return normalized || DEFAULT_LANGUAGE;
-  }, [languagePreference]);
+  const languagePreference = session?.user?.language ?? baseLanguage;
+  const languageId = useMemo(
+    () => normalizeLanguage(languagePreference),
+    [languagePreference],
+  );
 
   // Stable parameters and options to prevent infinite re-renders
   const bookQueryParams = useMemo(() => ({
@@ -221,12 +221,12 @@ export default function TabOneScreen() {
           {isLoadingPage && (
             <View style={screenStyles.pageLoading}>
               <ActivityIndicator color={palette.tint} />
-              <Text>Carregando...</Text>
+              <Text>{t('home.loading')}</Text>
             </View>
           )}
           {!isLoadingPage && items.length === 0 && (
             <View style={screenStyles.pageLoading}>
-              <Text>Nenhum item nesta página.</Text>
+              <Text>{t('home.empty')}</Text>
             </View>
           )}
           {!isLoadingPage && items.length > 0 && (
@@ -299,10 +299,10 @@ export default function TabOneScreen() {
       <View style={screenStyles.header}>
         <Text style={screenStyles.title}>
           {searchActive
-            ? `Resultado: "${searchApplied}"`
+            ? t('home.heading.search', { text: searchApplied })
             : selectedGenre
             ? selectedGenre.name
-            : 'Mais recentes'}
+            : t('home.heading.default')}
         </Text>
         <Text style={screenStyles.pageCount}>
           {maxPageIndex > 0 ? `${currentPageIndex + 1} / ${maxPageIndex + 1}` : ''}
@@ -311,16 +311,14 @@ export default function TabOneScreen() {
           onPress={() => setShowGenreModal(true)}
           style={[screenStyles.filterButton, { backgroundColor: accent }]}
         >
-          <Text style={[screenStyles.filterButtonText, { color: primaryTextColor }]}>
-            Filtrar
-          </Text>
+          <Text style={[screenStyles.filterButtonText, { color: primaryTextColor }]}>{t('home.filter')}</Text>
         </Pressable>
       </View>
 
       <View style={screenStyles.searchRow}>
         <TextInput
           ref={searchInputRef}
-          placeholder="Buscar por título ou autor"
+          placeholder={t('home.searchPlaceholder')}
           value={searchInput}
           onChangeText={onChangeSearch}
           style={[
@@ -347,23 +345,19 @@ export default function TabOneScreen() {
           onPress={applySearch}
           disabled={!searchInput.trim() || searchInput.trim() === searchApplied}
         >
-          <Text style={[screenStyles.searchButtonText, { color: primaryTextColor }]}>
-            Buscar
-          </Text>
+          <Text style={[screenStyles.searchButtonText, { color: primaryTextColor }]}>{t('home.searchSubmit')}</Text>
         </Pressable>
         {searchActive && (
           <Pressable
             style={[screenStyles.clearButton, { borderColor: palette.tabIconDefault }]}
             onPress={clearSearch}
           >
-            <Text style={[screenStyles.clearButtonText, { color: accent }]}>Limpar</Text>
+            <Text style={[screenStyles.clearButtonText, { color: accent }]}>{t('home.searchClear')}</Text>
           </Pressable>
         )}
         {keyboardVisible && (
           <Pressable style={screenStyles.keyboardButton} onPress={dismissKeyboard}>
-            <Text style={[screenStyles.keyboardButtonText, { color: palette.text, opacity: 0.7 }]}>
-              Fechar
-            </Text>
+            <Text style={[screenStyles.keyboardButtonText, { color: palette.text, opacity: 0.7 }]}>{t('home.keyboardDismiss')}</Text>
           </Pressable>
         )}
       </View>
@@ -372,7 +366,7 @@ export default function TabOneScreen() {
       {error && (
         <View style={[screenStyles.errorBox, { backgroundColor: 'rgba(255,0,0,0.12)' }]}>
           <Text style={[screenStyles.errorText, { color: palette.text }]}>
-            {error}
+            {typeof error === 'string' && error.trim() ? error : t('home.error')}
           </Text>
         </View>
       )}
@@ -401,9 +395,11 @@ export default function TabOneScreen() {
         ]}
       >
         <Text style={[screenStyles.footerText, { color: palette.text }]}>
-          {total == null ? '...' : `${total} livros no total`}
+          {total == null
+            ? '...'
+            : t(total === 1 ? 'home.totalSingular' : 'home.totalPlural', { count: total })}
         </Text>
-      </View>
+     </View>
 
       <GenreModal
         visible={showGenreModal}

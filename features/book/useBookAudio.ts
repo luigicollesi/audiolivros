@@ -27,11 +27,12 @@ type UseBookAudioOptions = {
   audioPath?: string | null;
   token: string;
   authedFetch: AuthedFetch;
+  ready?: boolean;
 };
 
 const PLAYBACK_RATES: ReadonlyArray<number> = [2, 1.5, 1, 0.5];
 
-export function useBookAudio({ audioPath, token, authedFetch }: UseBookAudioOptions): BookAudioControls {
+export function useBookAudio({ audioPath, token, authedFetch, ready = true }: UseBookAudioOptions): BookAudioControls {
   const player = useAudioPlayer(undefined, { updateInterval: 200 });
   const status = useAudioPlayerStatus(player);
 
@@ -58,10 +59,14 @@ export function useBookAudio({ audioPath, token, authedFetch }: UseBookAudioOpti
     let active = true;
     setPlaybackRateState(1);
     (async () => {
-      if (!audioPath) {
-        audioLogger.debug('Nenhum áudio associado ao livro atual');
+      if (!ready || !audioPath) {
+        audioLogger.debug('Nenhum áudio pronto para carregar', {
+          ready,
+          audioPath,
+        });
         setAudioReady(false);
         setAudioErr(null);
+        setAudioLoading(!!audioPath && !ready);
         return;
       }
 
@@ -140,7 +145,7 @@ export function useBookAudio({ audioPath, token, authedFetch }: UseBookAudioOpti
     return () => {
       active = false;
     };
-  }, [audioPath, token, player, fetchWithTimeout]);
+  }, [audioPath, token, player, fetchWithTimeout, ready]);
 
   useEffect(() => {
     try {

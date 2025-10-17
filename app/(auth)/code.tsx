@@ -12,6 +12,7 @@ import { RootState } from '@/store';
 import { useAuth } from '@/auth/AuthContext';
 import { authLogger } from '@/utils/logger';
 import { CodeVerificationView } from '@/components/auth/CodeVerificationView';
+import { useTranslation } from '@/i18n/LanguageContext';
 
 type SessionPayload = {
   token: string;
@@ -37,6 +38,7 @@ export default function CodeScreen() {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const { t } = useTranslation();
 
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -66,14 +68,14 @@ export default function CodeScreen() {
 
   const handleSubmit = useCallback(async () => {
     if (!pending?.pendingToken || !pending?.machineCode) {
-      setError('Fluxo expirado. Faça login novamente.');
+      setError(t('code.expired'));
       router.replace('/(auth)/login');
       return;
     }
 
     const sanitized = sanitizeDigits(code).slice(0, CODE_LENGTH);
     if (sanitized.length !== CODE_LENGTH) {
-      setError('Digite os 5 dígitos do código.');
+      setError(t('code.invalidLength'));
       return;
     }
 
@@ -135,7 +137,7 @@ export default function CodeScreen() {
       phoneDigits.length === 9
         ? `${phoneDigits.slice(0, 5)}-${phoneDigits.slice(5)}`
         : phoneDigits;
-    return `Enviamos para (+55) ${ddd} ${pretty}`;
+    return t('code.sentTo', { phone: `(+55) ${ddd} ${pretty}` });
   }, [pending?.phone]);
 
   return (
@@ -144,10 +146,8 @@ export default function CodeScreen() {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <Text style={styles.title}>Digite o código</Text>
-        <Text style={styles.subtitle}>
-          Insira os 5 dígitos recebidos para concluir sua autenticação.
-        </Text>
+        <Text style={styles.title}>{t('code.title')}</Text>
+        <Text style={styles.subtitle}>{t('code.instructions')}</Text>
         {phoneLabel && <Text style={styles.info}>{phoneLabel}</Text>}
 
         <View style={styles.verificationWrapper}>
@@ -163,11 +163,11 @@ export default function CodeScreen() {
             error={error}
             codeLength={CODE_LENGTH}
             onSubmit={handleSubmit}
-            submitLabel="Confirmar"
+            submitLabel={t('code.submit')}
             onBack={() => {
               if (!submitting) router.replace('/(auth)/phone');
             }}
-            backLabel="Corrigir telefone"
+            backLabel={t('code.back')}
           />
         </View>
       </KeyboardAvoidingView>

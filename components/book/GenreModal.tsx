@@ -10,6 +10,7 @@ import {
 import Colors from '@/constants/Colors';
 import { Text, View } from '@/components/shared/Themed';
 import { GENRES } from '@/constants/Genres';
+import { useTranslation } from '@/i18n/LanguageContext';
 
 export type GenreOption = { id: number; name: string; slug: string };
 
@@ -28,10 +29,11 @@ function GenreModalBase({
   onSelect,
   onClose,
   allowClear = true,
-  title = 'Selecione um gênero',
+  title,
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const theme = Colors[scheme];
+  const { t } = useTranslation();
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -41,7 +43,7 @@ function GenreModalBase({
           styles.sheet,
           { backgroundColor: theme.background, borderColor: theme.bookCard }
         ]}>
-          <Text style={[styles.title]}>{title}</Text>
+          <Text style={[styles.title]}>{title ?? t('genre.title')}</Text>
 
           {/* Botão limpar filtro (opcional) */}
           {allowClear && (
@@ -49,7 +51,7 @@ function GenreModalBase({
               onPress={() => { onSelect(null); onClose(); }}
               style={[styles.clearBtn, { backgroundColor: theme.bookCard }]}
             >
-              <Text style={[styles.clearBtnText, { color: theme.text }]}>Limpar filtro</Text>
+              <Text style={[styles.clearBtnText, { color: theme.text }]}>{t('genre.clear')}</Text>
             </Pressable>
           )}
 
@@ -87,9 +89,7 @@ function GenreModalBase({
           />
 
           <Pressable onPress={onClose} style={[styles.closeBtn, { backgroundColor: theme.tint }]}>
-            <Text style={[styles.closeBtnText, { color: scheme === 'dark' ? '#000' : '#fff' }]}>
-              Fechar
-            </Text>
+            <Text style={[styles.closeBtnText, { color: scheme === 'dark' ? '#000' : '#fff' }]}>{t('genre.close')}</Text>
           </Pressable>
         </View>
       </View>

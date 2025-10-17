@@ -8,6 +8,8 @@ import { useOptimizedBooks } from '@/hooks/useOptimizedBooks';
 import { useSafeInsets } from '@/hooks/useSafeInsets';
 import { useSmartRefresh } from '@/hooks/useSmartRefresh';
 import { favoritesLogger } from '@/utils/logger';
+import { useTranslation } from '@/i18n/LanguageContext';
+import { normalizeLanguage } from '@/i18n/translations';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -34,6 +36,7 @@ export default function LibraryScreen() {
   const { scheduleRefresh } = useSmartRefresh();
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
+  const { language: baseLanguage, t } = useTranslation();
 
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -42,12 +45,8 @@ export default function LibraryScreen() {
   const flatRef = useRef<FlatList<number>>(null);
   const initializedRef = useRef(false);
 
-  const languagePreference = session?.user?.language;
-  const languageId = useMemo(() => {
-    const normalized =
-      typeof languagePreference === 'string' ? languagePreference.trim() : '';
-    return normalized || 'pt-BR';
-  }, [languagePreference]);
+  const languagePreference = session?.user?.language ?? baseLanguage;
+  const languageId = useMemo(() => normalizeLanguage(languagePreference), [languagePreference]);
 
   // Stable parameters and options for favorites
   const favoritesQueryParams = useMemo(() => ({
@@ -267,12 +266,12 @@ export default function LibraryScreen() {
           {isLoadingPage && (
             <View style={styles.pageLoading}>
               <ActivityIndicator />
-              <Text>Carregando favoritos...</Text>
+              <Text>{t('library.loading')}</Text>
             </View>
           )}
           {!isLoadingPage && items.length === 0 && (
             <View style={styles.pageLoading}>
-              <Text>Nenhum favorito nesta página.</Text>
+              <Text>{t('library.emptyPage')}</Text>
             </View>
           )}
           {!isLoadingPage && items.length > 0 && (
@@ -292,7 +291,7 @@ export default function LibraryScreen() {
       style={[styles.container, { paddingTop: insets.top + 6, backgroundColor: palette.background }]}
     > 
       <View style={styles.header}>
-        <Text style={styles.title}>Favoritos</Text>
+        <Text style={styles.title}>{t('library.heading')}</Text>
         <Text style={styles.pageCount}>
           {maxPageIndex > 0 ? `${currentPageIndex + 1} / ${maxPageIndex + 1}` : ''}
         </Text>
@@ -300,7 +299,7 @@ export default function LibraryScreen() {
 
       {emptyState ? (
         <View style={styles.emptyBox}>
-          <Text style={styles.emptyText}>Nenhum livro nos favoritos ainda.</Text>
+          <Text style={styles.emptyText}>{t('library.none')}</Text>
         </View>
       ) : multiPage ? (
         <FlatList
@@ -326,7 +325,7 @@ export default function LibraryScreen() {
       ) : (
         <View style={styles.pageLoading}>
           <ActivityIndicator color={palette.tint} />
-          <Text>Carregando favoritos...</Text>
+          <Text>{t('library.loading')}</Text>
         </View>
       )}
 
@@ -334,7 +333,9 @@ export default function LibraryScreen() {
         style={[styles.footer, { borderTopColor: palette.tabIconDefault, paddingBottom: insets.bottom }]}
       >
         <Text style={[styles.footerText, { color: palette.text }]}>
-          {total == null ? '...' : `${total} livros favoritados`}
+          {total == null
+            ? '...'
+            : t(total === 1 ? 'library.totalSingular' : 'library.totalPlural', { count: total })}
         </Text>
       </View>
     </View>

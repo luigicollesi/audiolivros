@@ -3,6 +3,8 @@ import { Pressable, StyleSheet } from 'react-native';
 import { Text, View } from '@/components/shared/Themed';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
+import { useTranslation } from '@/i18n/LanguageContext';
+import { formatLanguageLabel, normalizeLanguage } from '@/i18n/translations';
 
 type Props = {
   title?: string | null;
@@ -28,6 +30,7 @@ export function BookInfo({
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const styles = useMemo(() => createStyles(palette, scheme === 'dark'), [palette, scheme]);
+  const { t } = useTranslation();
 
   return (
     <View style={[styles.container, { backgroundColor }]}> 
@@ -46,9 +49,9 @@ export function BookInfo({
           </Pressable>
         )}
       </View>
-      {!!author && <Text style={styles.meta}>Autor: {author}</Text>}
-      {!!year && <Text style={styles.meta}>Ano: {year}</Text>}
-      <Text style={styles.meta}>Língua: {language}</Text>
+      {!!author && <Text style={styles.meta}>{t('book.author')}: {author}</Text>}
+      {!!year && <Text style={styles.meta}>{t('book.year')}: {year}</Text>}
+      <Text style={styles.meta}>{t('book.language')}: {formatLanguageLabel(normalizeLanguage(language))}</Text>
     </View>
   );
 }

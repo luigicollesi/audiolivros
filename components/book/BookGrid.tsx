@@ -13,6 +13,8 @@ import Colors from '@/constants/Colors';
 import { Text, View } from '@/components/shared/Themed';
 import { BASE_URL } from '@/constants/API';
 import { useSafeInsets } from '@/hooks/useSafeInsets';
+import { useAuth } from '@/auth/AuthContext';
+import { useTranslation } from '@/i18n/LanguageContext';
 
 export type BookItem = {
   title: string;
@@ -37,24 +39,37 @@ function GridCardsBase({ books, baseUrl = BASE_URL, onPressBook, prefetchCovers 
   const insets = useSafeInsets();
   const scheme = useColorScheme() ?? 'light';
   const theme = Colors[scheme];
+  const { session } = useAuth();
+  const { t } = useTranslation();
+  const token = session?.token;
+  const authHeaders = useMemo(
+    () => (token ? { Authorization: `Bearer ${String(token).trim()}` } : undefined),
+    [token],
+  );
 
   useEffect(() => {
     if (!prefetchCovers) return;
     books.forEach((b) => {
       const path = b.cover_url.startsWith('/') ? b.cover_url : `/${b.cover_url}`;
-      Image.prefetch(`${baseUrl}${path}`).catch(() => {});
+      const url = `${baseUrl}${path}`;
+      if (authHeaders) {
+        fetch(url, { headers: authHeaders }).catch(() => {});
+      } else {
+        Image.prefetch(url).catch(() => {});
+      }
     });
-  }, [books, baseUrl, prefetchCovers]);
+  }, [books, baseUrl, prefetchCovers, authHeaders]);
 
   const renderItem = useCallback(
     ({ item, index }: ListRenderItemInfo<BookItem>) => (
       <BookCard
         book={item}
         baseUrl={baseUrl}
+        headers={authHeaders}
         onPress={() => onPressBook?.(item, index)}
       />
     ),
-    [baseUrl, onPressBook]
+    [baseUrl, onPressBook, authHeaders]
   );
 
   const keyExtractor = useCallback(
@@ -86,17 +101,26 @@ export const GridCards = memo(GridCardsBase);
 type BookCardProps = {
   book: BookItem;
   baseUrl?: string;
+  headers?: Record<string, string>;
   onPress?: () => void;
 };
 
-function BookCardBase({ book, baseUrl = BASE_URL, onPress }: BookCardProps) {
+function BookCardBase({ book, baseUrl = BASE_URL, headers, onPress }: BookCardProps) {
   const scheme = useColorScheme() ?? 'light';
   const theme = Colors[scheme];
+  const { t } = useTranslation();
 
   const imageUri = useMemo(() => {
     const path = book.cover_url.startsWith('/') ? book.cover_url : `/${book.cover_url}`;
     return `${baseUrl}${path}`;
   }, [book.cover_url, baseUrl]);
+  const imageSource = useMemo(
+    () =>
+      headers
+        ? { uri: imageUri, headers }
+        : { uri: imageUri },
+    [imageUri, headers],
+  );
 
   const [imgError, setImgError] = useState(false);
   const [imgLoading, setImgLoading] = useState(true);
@@ -111,7 +135,7 @@ function BookCardBase({ book, baseUrl = BASE_URL, onPress }: BookCardProps) {
       <RNView style={[styles.cover, { backgroundColor: theme.bookCard }]}>
         {!imgError ? (
           <Image
-            source={{ uri: imageUri }}
+            source={imageSource}
             style={styles.coverImg}
             resizeMode="cover"
             onError={() => setImgError(true)}
@@ -120,7 +144,7 @@ function BookCardBase({ book, baseUrl = BASE_URL, onPress }: BookCardProps) {
           />
         ) : (
           <RNView style={styles.coverFallback}>
-            <Text style={styles.coverFallbackText}>Sem capa</Text>
+            <Text style={styles.coverFallbackText}>{t('book.noCover')}</Text>
           </RNView>
         )}
         {imgLoading && !imgError && <RNView style={styles.coverOverlay} />}

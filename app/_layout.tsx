@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
 import { useColorScheme } from '@/components/shared/useColorScheme';
 import { useRequestMonitor } from '@/hooks/useRequestMonitor';
+import { LanguageProvider } from '@/i18n/LanguageContext';
 
 import { store } from '@/store';
 import { configureLogger } from '@/utils/logger';
@@ -51,13 +52,15 @@ function RootLayoutNav() {
   
   return (
     <Provider store={store}>
-      <AuthProvider>
-        <SafeAreaProvider>
-          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <GuardedStack />
-          </ThemeProvider>
-        </SafeAreaProvider>
-      </AuthProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <SafeAreaProvider>
+            <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+              <GuardedStack />
+            </ThemeProvider>
+          </SafeAreaProvider>
+        </AuthProvider>
+      </LanguageProvider>
     </Provider>
   );
 }

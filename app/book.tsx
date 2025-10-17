@@ -1,6 +1,6 @@
 // src/app/book.tsx
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, useColorScheme } from 'react-native';
 
 import { useAuth } from '@/auth/AuthContext';
@@ -11,7 +11,9 @@ import Colors from '@/constants/Colors';
 import { useOptimizedFavorites } from '@/hooks/useOptimizedFavorites';
 import { useSafeInsets } from '@/hooks/useSafeInsets';
 import { useSmartRefresh } from '@/hooks/useSmartRefresh';
-import { favoritesLogger } from '@/utils/logger';
+import { audioLogger, favoritesLogger } from '@/utils/logger';
+import { useTranslation } from '@/i18n/LanguageContext';
+import { normalizeLanguage } from '@/i18n/translations';
 
 import { AUDIO_BAR_HEIGHT, AudioBar } from '@/features/book/AudioBar';
 import { BookInfo } from '@/features/book/BookInfo';
@@ -19,6 +21,7 @@ import { BookSummarySection } from '@/features/book/BookSummarySection';
 import { HighlightedSummary } from '@/features/book/HighlightedSummary';
 import { useBookAudio } from '@/features/book/useBookAudio';
 import { useBookSummary } from '@/features/book/useBookSummary';
+import { useListeningProgress } from '@/features/book/useListeningProgress';
 
 export default function BookScreen() {
   const { title, author, year, cover_url, language } =
@@ -29,15 +32,24 @@ export default function BookScreen() {
   const insets = useSafeInsets();
 
   const { fetchJSON, authedFetch } = useAuthedFetch();
-  const { session, markFavoritesDirty } = useAuth();
+  const { session } = useAuth();
   const { scheduleRefresh } = useSmartRefresh();
   const { toggleFavorite, isPending } = useOptimizedFavorites();
   const token = session?.token ?? '';
+  const { language: appLanguage } = useTranslation();
 
   const imageUri = useMemo(() => {
     const path = cover_url?.startsWith('/') ? cover_url : `/${cover_url}`;
     return `${BASE_URL}${path}`;
   }, [cover_url]);
+  const coverHeaders = useMemo(
+    () => (token ? { Authorization: `Bearer ${String(token).trim()}` } : undefined),
+    [token],
+  );
+  const coverSource = useMemo(
+    () => (coverHeaders ? { uri: imageUri, headers: coverHeaders } : { uri: imageUri }),
+    [imageUri, coverHeaders],
+  );
 
   const lang = useMemo(() => {
     const routeLang = typeof language === 'string' ? language.trim() : '';
@@ -45,9 +57,9 @@ export default function BookScreen() {
       typeof session?.user?.language === 'string'
         ? session.user.language.trim()
         : '';
-    const candidate = routeLang || sessionLang || 'pt-BR';
-    return candidate === 'pt-BR' || candidate === 'en-US' ? candidate : 'pt-BR';
-  }, [language, session?.user?.language]);
+    const candidate = routeLang || sessionLang || appLanguage;
+    return normalizeLanguage(candidate);
+  }, [language, session?.user?.language, appLanguage]);
 
   const summariesUrl = useMemo(() => {
     if (!title) return null;
@@ -56,7 +68,26 @@ export default function BookScreen() {
   }, [title, lang]);
 
   const { summary, loading, error } = useBookSummary(summariesUrl, fetchJSON);
+  const progressSync = useListeningProgress({
+    bookId: summary?.bookId,
+    audioPath: summary?.audio_url,
+    authedFetch,
+    fetchJSON,
+    initialProgressHint: summary?.listeningProgress ?? null,
+  });
+  const {
+    initialPosition: savedPosition,
+    reportPlayback,
+    endSession,
+    loading: progressLoading,
+    ready: progressReady,
+    markEngaged,
+  } = progressSync;
   const [favorite, setFavorite] = useState<boolean>(false);
+  const audioPath = useMemo(
+    () => (progressReady ? summary?.audio_url ?? null : null),
+    [progressReady, summary?.audio_url],
+  );
   
   // Create consistent book ID for optimized favorites
   const bookId = useMemo(() => {
@@ -80,7 +111,12 @@ export default function BookScreen() {
     playbackRate,
     availableRates,
     setPlaybackRate,
-  } = useBookAudio({ audioPath: summary?.audio_url, token, authedFetch });
+  } = useBookAudio({ audioPath, token, authedFetch, ready: progressReady });
+
+  const initialSeekAttemptedRef = useRef(false);
+  const initialSyncCompletedRef = useRef(false);
+  const prevPlayingRef = useRef(isPlaying);
+  const latestPlaybackRef = useRef({ position: 0, duration: 0 });
 
   useFocusEffect(
     useCallback(() => {
@@ -99,6 +135,11 @@ export default function BookScreen() {
       setFavorite(false);
     }
   }, [summary]);
+
+  useEffect(() => {
+    initialSeekAttemptedRef.current = false;
+    initialSyncCompletedRef.current = false;
+  }, [audioPath, savedPosition]);
 
   const toggleSummaryExpanded = useCallback(() => {
     favoritesLogger.debug('Alternando estado do resumo expandido', {
@@ -162,13 +203,153 @@ export default function BookScreen() {
     [summaryExpanded, insets.bottom],
   );
 
+  useEffect(() => {
+    if (!audioReady) return;
+    if (!audioPath) return;
+    if (initialSyncCompletedRef.current || initialSeekAttemptedRef.current) return;
+
+    const initial = typeof savedPosition === 'number' ? savedPosition : 0;
+    const hasDuration = typeof duration === 'number' && Number.isFinite(duration) && duration > 0;
+
+    if (!hasDuration) {
+      if (initial > 0) {
+        audioLogger.debug('Aguardando metadados do áudio para retomar posição', {
+          bookId: summary?.bookId ?? null,
+          savedPosition: initial,
+          duration,
+        });
+      }
+      return;
+    }
+
+    if (initial <= 0) {
+      audioLogger.debug('Nenhum progresso salvo, iniciando do começo', {
+        bookId: summary?.bookId ?? null,
+      });
+      initialSyncCompletedRef.current = true;
+      return;
+    }
+
+    initialSeekAttemptedRef.current = true;
+
+    const safetyBuffer = Math.max(Math.min(duration * 0.01, 3), 0.5);
+    const maxAllowed = Math.max(duration - safetyBuffer, 0);
+    const target = Math.max(0, Math.min(initial, maxAllowed));
+
+    audioLogger.info('Retomando reprodução', {
+      bookId: summary?.bookId ?? null,
+      audioPath,
+      savedPosition: initial,
+      duration,
+      safetyBuffer,
+      target,
+    });
+
+    (async () => {
+      try {
+        await seekTo(target);
+        audioLogger.info('Reprodução reposicionada com sucesso', {
+          bookId: summary?.bookId ?? null,
+          target,
+        });
+      } catch (err: any) {
+        audioLogger.error('Erro ao reposicionar áudio', {
+          bookId: summary?.bookId ?? null,
+          target,
+          error: err?.message ?? String(err),
+        });
+      } finally {
+        initialSyncCompletedRef.current = true;
+      }
+    })();
+  }, [audioReady, audioPath, duration, savedPosition, seekTo, summary?.bookId]);
+
+  useEffect(() => {
+    if (!audioReady || !duration || duration <= 0) {
+      prevPlayingRef.current = isPlaying;
+      return;
+    }
+
+    if (!initialSyncCompletedRef.current) {
+      prevPlayingRef.current = isPlaying;
+      return;
+    }
+
+    reportPlayback({
+      position,
+      duration,
+      isPlaying,
+    });
+
+    if (prevPlayingRef.current && !isPlaying) {
+      reportPlayback({
+        position,
+        duration,
+        isPlaying,
+        force: true,
+      });
+    }
+
+    prevPlayingRef.current = isPlaying;
+  }, [audioReady, duration, isPlaying, position, reportPlayback]);
+
+  useEffect(() => {
+    latestPlaybackRef.current = {
+      position,
+      duration,
+    };
+  }, [position, duration]);
+
+  useEffect(
+    () => () => {
+      const snapshot = latestPlaybackRef.current;
+      void endSession({
+        force: true,
+        position: snapshot.position,
+        duration: snapshot.duration,
+      });
+    },
+    [endSession],
+  );
+
+  const handleTogglePlay = useCallback(() => {
+    markEngaged();
+    togglePlay();
+  }, [markEngaged, togglePlay]);
+
+  const handleSeek = useCallback(
+    (value: number) => {
+      markEngaged();
+      initialSyncCompletedRef.current = true;
+      void seekTo(value);
+      if (!audioReady || !duration || duration <= 0) return;
+      reportPlayback({
+        position: value,
+        duration,
+        isPlaying,
+        force: true,
+      });
+    },
+    [audioReady, duration, isPlaying, markEngaged, reportPlayback, seekTo],
+  );
+
+  const handleSkipBackward = useCallback(() => {
+    markEngaged();
+    void skipBy(-10);
+  }, [markEngaged, skipBy]);
+
+  const handleSkipForward = useCallback(() => {
+    markEngaged();
+    void skipBy(10);
+  }, [markEngaged, skipBy]);
+
   return (
     <>
       <ScrollView
         contentContainerStyle={scrollContentStyle}
         keyboardShouldPersistTaps="handled"
       >
-        <Image source={{ uri: imageUri }} style={styles.cover} resizeMode="cover" />
+        <Image source={coverSource} style={styles.cover} resizeMode="cover" />
 
         <BookInfo
           title={title}
@@ -233,10 +414,10 @@ export default function BookScreen() {
         audioLoading={audioLoading}
         audioError={audioErr}
         isPlaying={isPlaying}
-        onTogglePlay={togglePlay}
-        onSeek={(value: number) => { void seekTo(value); }}
-        onSkipBackward={() => { void skipBy(-10); }}
-        onSkipForward={() => { void skipBy(10); }}
+        onTogglePlay={handleTogglePlay}
+        onSeek={handleSeek}
+        onSkipBackward={handleSkipBackward}
+        onSkipForward={handleSkipForward}
         seeking={seeking}
         position={position}
         duration={duration}

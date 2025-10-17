@@ -1,6 +1,8 @@
 // src/auth/AuthContext.tsx
 import { BASE_URL } from '@/constants/API';
 import { authLogger } from '@/utils/logger';
+import { useLanguage } from '@/i18n/LanguageContext';
+import { normalizeLanguage, DEFAULT_LANGUAGE } from '@/i18n/translations';
 import React, {
   createContext,
   useCallback,
@@ -99,6 +101,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const [refreshing, setRefreshing] = useState(false);
   const [favoritesDirty, setFavoritesDirty] = useState(true);
 
+  const { setLanguage, language: currentLanguage } = useLanguage();
+
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshingRef = useRef(false);
   const globalOffsetRef = useRef<number>(0);
@@ -130,11 +134,13 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     sessionRef.current = s;
     setSession(s);
     setFavoritesDirty(true);
+    const nextLanguage = normalizeLanguage(s.user.language ?? currentLanguage ?? DEFAULT_LANGUAGE);
+    setLanguage(nextLanguage);
     authLogger.info('Sessão autenticada', {
       email: s.user.email,
       expiresAt: s.expiresAt,
     });
-  }, []);
+  }, [currentLanguage, setLanguage]);
 
   const signOut = useCallback(() => {
     clearRefreshTimer();
@@ -153,6 +159,13 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       globalOffsetRef.current = 0;
     }
   }, []);
+
+  useEffect(() => {
+    const nextLanguage = session?.user?.language;
+    if (nextLanguage) {
+      setLanguage(normalizeLanguage(nextLanguage));
+    }
+  }, [session?.user?.language, setLanguage]);
 
   const refreshSession = useCallback(async () => {
     const current = sessionRef.current;
