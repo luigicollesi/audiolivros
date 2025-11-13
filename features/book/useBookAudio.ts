@@ -10,6 +10,7 @@ export type BookAudioControls = {
   audioLoading: boolean;
   audioErr: string | null;
   isPlaying: boolean;
+  didJustFinish: boolean;
   togglePlay: () => void;
   seekTo: (value: number) => Promise<void>;
   skipBy: (delta: number) => Promise<void>;
@@ -160,15 +161,36 @@ export function useBookAudio({ audioPath, token, authedFetch, ready = true }: Us
   }, [player, playbackRate]);
 
   const isPlaying = !!status?.playing;
+  const didJustFinish = !!status?.didJustFinish;
   const position = status?.currentTime ?? 0;
   const duration = status?.duration ?? 0;
   const progressRatio = duration ? position / duration : 0;
 
   const togglePlay = useCallback(() => {
     if (!audioReady || audioLoading || audioErr) return;
-    if (isPlaying) player.pause();
-    else player.play();
-  }, [audioReady, audioLoading, audioErr, isPlaying, player]);
+    if (isPlaying) {
+      player.pause();
+      return;
+    }
+
+    const durationSeconds = status?.duration ?? 0;
+    const currentSeconds = status?.currentTime ?? 0;
+    const finished =
+      durationSeconds > 0 &&
+      Math.abs(currentSeconds - durationSeconds) <= Math.max(0.25, durationSeconds * 0.005);
+
+    if (finished) {
+      player
+        .seekTo(0)
+        .catch(() => {})
+        .finally(() => {
+          player.play();
+        });
+      return;
+    }
+
+    player.play();
+  }, [audioReady, audioLoading, audioErr, isPlaying, player, status?.currentTime, status?.duration]);
   const seekTo = useCallback(
     async (value: number) => {
       if (!audioReady || audioErr || audioLoading || Number.isNaN(value)) return;
@@ -211,21 +233,12 @@ export function useBookAudio({ audioPath, token, authedFetch, ready = true }: Us
 
   const availableRates = useMemo(() => [...PLAYBACK_RATES], []);
 
-  useEffect(() => {
-    if (!audioReady || audioLoading || audioErr) return;
-    if (!status?.playing && !seeking && status?.duration) {
-      const finished = Math.abs((status.currentTime ?? 0) - status.duration) < 0.2;
-      if (finished) {
-        player.seekTo(0).catch(() => {});
-      }
-    }
-  }, [status?.playing, status?.currentTime, status?.duration, audioReady, audioLoading, audioErr, player, seeking]);
-
   return {
     audioReady,
     audioLoading,
     audioErr,
     isPlaying,
+    didJustFinish,
     togglePlay,
     seekTo,
     skipBy,

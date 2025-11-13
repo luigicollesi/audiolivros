@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BASE_URL } from '@/constants/API';
 import { audioLogger } from '@/utils/logger';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AuthedFetch } from './types';
+// Session-based completion tracking (no persistent cache)
+interface SessionCompletionData {
+  sentAt: number;
+  lastProgressAfter: number;
+}
+
+const sessionCompletionState = new Map<string, SessionCompletionData>();
 
 type FetchJSON = <T>(
   input: RequestInfo | URL,
@@ -22,7 +29,34 @@ type ReportPlaybackArgs = {
   duration: number;
   isPlaying: boolean;
   force?: boolean;
+  completed?: boolean;
 };
+
+type FinishState = 'idle' | 'pending' | 'completed';
+type FinishReason = 'threshold-95' | 'explicit-complete';
+
+const RECENT_COMPLETION_TTL_MS = 2 * 60 * 1000;
+const HEARTBEAT_MIN_POSITION_SECONDS = 5;
+const HEARTBEAT_EDGE_PERCENT = 5;
+const FINISH_THRESHOLD_PERCENT = 95;
+
+const recentlyClearedProgress = new Map<string, number>();
+
+function rememberProgressCleared(bookId?: string | null) {
+  if (!bookId) return;
+  recentlyClearedProgress.set(bookId, Date.now());
+}
+
+function wasProgressRecentlyCleared(bookId?: string | null): boolean {
+  if (!bookId) return false;
+  const ts = recentlyClearedProgress.get(bookId);
+  if (typeof ts !== 'number') return false;
+  if (Date.now() - ts > RECENT_COMPLETION_TTL_MS) {
+    recentlyClearedProgress.delete(bookId);
+    return false;
+  }
+  return true;
+}
 
 type UseListeningProgressOptions = {
   bookId?: string | null;
@@ -44,6 +78,7 @@ export function useListeningProgress({
   const [resolvedKey, setResolvedKey] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
   const [lastPersistedPosition, setLastPersistedPosition] = useState<number | null>(null);
+  const [completionChecked, setCompletionChecked] = useState<boolean>(false);
 
   const audioFileName = useMemo(() => deriveAudioFileName(audioPath), [audioPath]);
   const currentKey = useMemo(() => bookId ?? audioFileName ?? null, [bookId, audioFileName]);
@@ -53,6 +88,22 @@ export function useListeningProgress({
   const lastSentAtRef = useRef(0);
   const lastSentPositionRef = useRef(0);
   const engagedRef = useRef(false);
+  const finishStateRef = useRef<FinishState>('idle');
+
+  const clearLocalProgressCache = useCallback(
+    (opts?: { bookId?: string | null }) => {
+      setInitialPosition(null);
+      setLastPersistedPosition(null);
+      setLastSyncedAt(null);
+      sessionStartedRef.current = false;
+      lastSentAtRef.current = 0;
+      lastSentPositionRef.current = 0;
+      if (opts?.bookId) {
+        rememberProgressCleared(opts.bookId);
+      }
+    },
+    [],
+  );
 
   // Reset session state quando muda o alvo
   useEffect(() => {
@@ -61,15 +112,24 @@ export function useListeningProgress({
     engagedRef.current = false;
     lastSentAtRef.current = 0;
     lastSentPositionRef.current = 0;
+    finishStateRef.current = 'idle';
     setLastPersistedPosition(null);
     setLastSyncedAt(null);
+    setCompletionChecked(false);
+    
+    // Clear session completion state for this book (new session)
+    if (bookId) {
+      sessionCompletionState.delete(bookId);
+      audioLogger.debug('Nova sessão iniciada - limpando estado de conclusão', { bookId });
+    }
+    
     if (currentKey) {
       setLoading(true);
     } else {
       setLoading(false);
     }
     setResolvedKey(null);
-  }, [currentKey]);
+  }, [currentKey, bookId]);
 
   useEffect(() => {
     if (!initialProgressHint) return;
@@ -91,11 +151,20 @@ export function useListeningProgress({
       setInitialPosition(null);
       setLoading(false);
       setResolvedKey(null);
+      setCompletionChecked(true); // ⭐ Permite verificação mesmo sem identificadores
+      audioLogger.debug('Sem bookId nem audioFileName - habilitando completion', {
+        currentKey,
+      });
       return;
     }
     if (!bookId) {
       setLoading(false);
       setResolvedKey(currentKey);
+      setCompletionChecked(true); // ⭐ Importante: permite conclusão mesmo sem bookId
+      audioLogger.debug('Sem bookId - habilitando completion para audioFileName', {
+        audioFileName,
+        currentKey,
+      });
       return;
     }
 
@@ -105,7 +174,15 @@ export function useListeningProgress({
         const progress = await fetchExistingProgress(fetchJSON, bookId);
         if (cancelled) return;
 
-        if (progress) {
+        const skipPersistedProgress = wasProgressRecentlyCleared(bookId);
+        if (skipPersistedProgress) {
+          setInitialPosition(null);
+          setLastPersistedPosition(null);
+          setLastSyncedAt(null);
+          audioLogger.info('Ignorando progresso persistido devido a finalização recente', {
+            bookId,
+          });
+        } else if (progress) {
           const position = sanitizeSeconds(progress.position_seconds);
           setInitialPosition(position);
           setLastPersistedPosition(position);
@@ -123,12 +200,16 @@ export function useListeningProgress({
             bookId,
           });
         }
+
+        // No pre-check needed - completion is session-based
+        setCompletionChecked(true);
       } catch (err: any) {
         if (cancelled) return;
         audioLogger.warn('Falha ao carregar progresso anterior', {
           error: err?.message ?? String(err),
         });
         setInitialPosition(null);
+        setCompletionChecked(true); // ⭐ Habilita completion mesmo com erro
       } finally {
         if (!cancelled) setLoading(false);
         if (!cancelled) setResolvedKey(currentKey);
@@ -140,8 +221,153 @@ export function useListeningProgress({
     };
   }, [bookId, audioFileName, fetchJSON, currentKey]);
 
+  const ensureFinished = useCallback(
+    ({
+      reason,
+      positionSeconds,
+      durationSeconds,
+      progressPercent,
+    }: {
+      reason: FinishReason;
+      positionSeconds: number;
+      durationSeconds?: number;
+      progressPercent?: number;
+    }) => {
+      audioLogger.info('🎯 ensureFinished chamado', {
+        bookId,
+        audioFileName,
+        reason,
+        progressPercent: progressPercent ?? null,
+        positionSeconds,
+        durationSeconds: durationSeconds ?? null,
+      });
+
+      if (!bookId) {
+        audioLogger.warn('Finalização detectada, mas bookId ausente', {
+          audioFileName,
+          reason,
+          progressPercent: progressPercent ?? null,
+          positionSeconds,
+          durationSeconds: durationSeconds ?? null,
+        });
+        return;
+      }
+
+      const state = finishStateRef.current;
+      
+      // Skip if already pending to avoid duplicate requests
+      if (state === 'pending') {
+        audioLogger.debug('Finalização em andamento - ignorando repetição', {
+          bookId,
+          reason,
+          progressPercent: progressPercent ?? null,
+          positionSeconds,
+          durationSeconds: durationSeconds ?? null,
+        });
+        return;
+      }
+
+      // Check session completion state
+      const sessionData = sessionCompletionState.get(bookId);
+      const now = Date.now();
+      
+      // If we sent completion in this session and haven't had progress since then, skip
+      if (sessionData && sessionData.sentAt > sessionData.lastProgressAfter) {
+        audioLogger.debug('Livro já foi marcado como concluído nesta sessão sem progresso posterior', {
+          bookId,
+          sentAt: new Date(sessionData.sentAt).toISOString(),
+          lastProgressAfter: new Date(sessionData.lastProgressAfter).toISOString(),
+          reason,
+        });
+        return;
+      }
+
+      finishStateRef.current = 'pending';
+      audioLogger.info('Iniciando finalização do livro', {
+        bookId,
+        reason,
+        progressPercent: progressPercent ?? null,
+        positionSeconds,
+        durationSeconds: durationSeconds ?? null,
+        sessionHadProgress: sessionData ? sessionData.lastProgressAfter > sessionData.sentAt : false,
+      });
+      
+      void (async () => {
+        try {
+          const res = await authedFetch(`${BASE_URL}/finished-books/${bookId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              reason,
+              progressPercent,
+              positionSeconds,
+              durationSeconds,
+            }),
+          });
+          
+          if (!res.ok) {
+            const msg = await safeReadError(res);
+            audioLogger.warn('Falha ao marcar livro como concluído', {
+              bookId,
+              status: res.status,
+              message: msg,
+              reason,
+              progressPercent: progressPercent ?? null,
+              positionSeconds,
+              durationSeconds: durationSeconds ?? null,
+            });
+            finishStateRef.current = 'idle';
+            return;
+          }
+
+          const data = await res.json().catch(() => null);
+          finishStateRef.current = 'completed';
+          
+          // Update session completion state
+          sessionCompletionState.set(bookId, {
+            sentAt: now,
+            lastProgressAfter: sessionData?.lastProgressAfter ?? 0,
+          });
+
+          clearLocalProgressCache({ bookId });
+          
+          audioLogger.info('Livro marcado como concluído com sucesso', {
+            bookId,
+            reason,
+            progressPercent: progressPercent ?? null,
+            positionSeconds,
+            durationSeconds: durationSeconds ?? null,
+            completedAt: data?.completedAt,
+            sessionSequence: sessionCompletionState.get(bookId),
+          });
+        } catch (error: any) {
+          finishStateRef.current = 'idle';
+          audioLogger.error('Erro ao enviar finalização do livro', {
+            bookId,
+            reason,
+            error: error?.message ?? String(error),
+          });
+        }
+      })();
+    },
+    [audioFileName, authedFetch, bookId, clearLocalProgressCache],
+  );
+
   const postUpdate = useCallback(
-    async (payload: { position: number; duration?: number; force?: boolean; source?: string }) => {
+    async (payload: {
+      position: number;
+      duration?: number;
+      force?: boolean;
+      source?: string;
+      markFinished?: boolean;
+    }) => {
+      audioLogger.debug('postUpdate chamado', {
+        bookId,
+        audioFileName,
+        payload,
+        completionChecked,
+      });
+
       if (!audioFileName && !bookId) {
         audioLogger.warn('Ignorando batida de progresso: sem bookId e sem audioFileName', payload);
         return false;
@@ -166,11 +392,66 @@ export function useListeningProgress({
         source: payload.source ?? 'heartbeat',
       };
 
-      if (
-        progressPercent != null &&
-        (progressPercent <= 5 || progressPercent >= 95)
-      ) {
-        audioLogger.debug('Batida ignorada por estar nas extremidades', {
+      const isNearStartBySeconds = positionSeconds <= HEARTBEAT_MIN_POSITION_SECONDS;
+      const isNearStartByPercent =
+        typeof progressPercent === 'number' && progressPercent <= HEARTBEAT_EDGE_PERCENT;
+
+      const shouldMarkFinished =
+        Boolean(payload.markFinished) ||
+        (typeof progressPercent === 'number' && progressPercent >= FINISH_THRESHOLD_PERCENT);
+
+      // Debug logging for threshold detection
+      audioLogger.debug('Verificando threshold de conclusão', {
+        bookId,
+        audioFileName,
+        progressPercent,
+        shouldMarkFinished,
+        markFinished: payload.markFinished,
+        completionChecked,
+        source: baseBody.source,
+      });
+
+      const canFinalize = shouldMarkFinished && (completionChecked || Boolean(payload.markFinished));
+
+      const shouldSkipEdgeHeartbeat =
+        !canFinalize && !payload.markFinished && (isNearStartBySeconds || isNearStartByPercent);
+
+      if (shouldSkipEdgeHeartbeat) {
+        audioLogger.debug('Batida ignorada no início do áudio', {
+          audioFileName,
+          bookId,
+          positionSeconds,
+          durationSeconds,
+          progressPercent,
+          source: baseBody.source,
+        });
+        return false;
+      }
+
+      if (canFinalize) {
+        const reason: FinishReason = payload.markFinished ? 'explicit-complete' : 'threshold-95';
+        audioLogger.info('Threshold atingido - disparando ensureFinished', {
+          bookId,
+          reason,
+          progressPercent,
+          positionSeconds,
+          durationSeconds,
+        });
+        ensureFinished({
+          reason,
+          positionSeconds,
+          durationSeconds,
+          progressPercent,
+        });
+        return false;
+      }
+
+      const isNearEndByPercent =
+        typeof progressPercent === 'number' &&
+        progressPercent >= 100 - HEARTBEAT_EDGE_PERCENT;
+
+      if (isNearEndByPercent && !canFinalize) {
+        audioLogger.debug('Batida ignorada próximo ao fim - aguardando finalização', {
           audioFileName,
           bookId,
           positionSeconds,
@@ -226,6 +507,18 @@ export function useListeningProgress({
         if (data?.persisted) {
           setLastPersistedPosition(positionSeconds);
           setLastSyncedAt(Date.now());
+          
+          // Update session completion state - this enables re-completion if threshold is hit again
+          if (bookId) {
+            const now = Date.now();
+            const existing = sessionCompletionState.get(bookId);
+            sessionCompletionState.set(bookId, {
+              sentAt: existing?.sentAt ?? 0,
+              lastProgressAfter: now,
+            });
+            recentlyClearedProgress.delete(bookId);
+          }
+          
           audioLogger.debug('Progresso persistido', {
             bookId: bookId ?? null,
             audioFileName,
@@ -233,6 +526,7 @@ export function useListeningProgress({
             durationSeconds: durationSeconds ?? null,
             progressPercent,
             source: baseBody.source,
+            sessionUpdated: !!bookId,
           });
         }
         if (bookId) {
@@ -250,18 +544,55 @@ export function useListeningProgress({
         return false;
       }
     },
-    [audioFileName, authedFetch, bookId],
+    [audioFileName, authedFetch, bookId, ensureFinished],
   );
 
   const reportPlayback = useCallback(
     (args: ReportPlaybackArgs) => {
-      if (!audioFileName && !bookId) return;
-      if (args.duration <= 0 || Number.isNaN(args.duration)) return;
+      audioLogger.debug('🎯 reportPlayback ENTRADA', {
+        bookId,
+        audioFileName,
+        'args.duration': args.duration,
+        'args.position': args.position,
+        'args.force': args.force,
+        'args.completed': args.completed,
+        'engagedRef.current': engagedRef.current,
+      });
 
-      if (!engagedRef.current && !args.force) {
-        audioLogger.debug('Heartbeat ignorado - aguardando interação do usuário');
+      if (!audioFileName && !bookId) {
+        audioLogger.warn('❌ reportPlayback BLOQUEADO - sem audioFileName nem bookId');
         return;
       }
+      
+      if (args.duration <= 0 || Number.isNaN(args.duration)) {
+        audioLogger.warn('❌ reportPlayback BLOQUEADO - duration inválida', {
+          duration: args.duration,
+          isNaN: Number.isNaN(args.duration),
+        });
+        return;
+      }
+
+      if (!engagedRef.current && !args.force) {
+        audioLogger.debug('❌ reportPlayback BLOQUEADO - aguardando interação do usuário', {
+          engaged: engagedRef.current,
+          force: args.force,
+        });
+        return;
+      }
+
+      // Debug log for reportPlayback calls
+      const progressPercent = args.duration > 0 ? (args.position / args.duration) * 100 : 0;
+      audioLogger.info('✅ reportPlayback EXECUTANDO', {
+        bookId,
+        audioFileName,
+        position: args.position,
+        duration: args.duration,
+        progressPercent: progressPercent.toFixed(1),
+        isPlaying: args.isPlaying,
+        force: args.force,
+        completed: args.completed,
+        engaged: engagedRef.current,
+      });
 
       const now = Date.now();
       const roundedPosition = sanitizeSeconds(args.position);
@@ -300,6 +631,7 @@ export function useListeningProgress({
         duration: roundedDuration,
         force: args.force || (!args.isPlaying && positionDelta > 1),
         source: sourceLabel,
+        markFinished: Boolean(args.completed),
       });
     },
     [postUpdate, audioFileName, bookId],
@@ -367,6 +699,16 @@ export function useListeningProgress({
     }
   }, []);
 
+  const clearBookCompletion = useCallback(() => {
+    if (bookId) {
+      sessionCompletionState.delete(bookId);
+      finishStateRef.current = 'idle';
+      setCompletionChecked(false);
+      recentlyClearedProgress.delete(bookId);
+      audioLogger.info('Cleared session completion status for book', { bookId });
+    }
+  }, [bookId]);
+
   return {
     audioFileName,
     loading,
@@ -377,6 +719,8 @@ export function useListeningProgress({
     reportPlayback,
     endSession,
     markEngaged,
+    clearBookCompletion, // For testing/debugging
+    isBookCompleted: finishStateRef.current === 'completed',
   };
 }
 

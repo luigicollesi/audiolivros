@@ -11,9 +11,9 @@ import Colors from '@/constants/Colors';
 import { useOptimizedFavorites } from '@/hooks/useOptimizedFavorites';
 import { useSafeInsets } from '@/hooks/useSafeInsets';
 import { useSmartRefresh } from '@/hooks/useSmartRefresh';
-import { audioLogger, favoritesLogger } from '@/utils/logger';
 import { useTranslation } from '@/i18n/LanguageContext';
 import { normalizeLanguage } from '@/i18n/translations';
+import { audioLogger, favoritesLogger } from '@/utils/logger';
 
 import { AUDIO_BAR_HEIGHT, AudioBar } from '@/features/book/AudioBar';
 import { BookInfo } from '@/features/book/BookInfo';
@@ -100,6 +100,7 @@ export default function BookScreen() {
     audioLoading,
     audioErr,
     isPlaying,
+    didJustFinish,
     togglePlay,
     seekTo,
     skipBy,
@@ -265,15 +266,38 @@ export default function BookScreen() {
   }, [audioReady, audioPath, duration, savedPosition, seekTo, summary?.bookId]);
 
   useEffect(() => {
+    audioLogger.debug('useEffect reportPlayback - verificando condições', {
+      audioReady,
+      duration,
+      isPlaying,
+      position,
+      initialSyncCompleted: initialSyncCompletedRef.current,
+      bookId: summary?.bookId,
+    });
+
     if (!audioReady || !duration || duration <= 0) {
       prevPlayingRef.current = isPlaying;
+      audioLogger.debug('Skipping reportPlayback - audio not ready or invalid duration', {
+        audioReady,
+        duration,
+      });
       return;
     }
 
     if (!initialSyncCompletedRef.current) {
       prevPlayingRef.current = isPlaying;
+      audioLogger.debug('Skipping reportPlayback - initial sync not completed');
       return;
     }
+
+    const progressPercent = duration > 0 ? (position / duration) * 100 : 0;
+    audioLogger.debug('Calling reportPlayback from book.tsx', {
+      position,
+      duration,
+      progressPercent: progressPercent.toFixed(1),
+      isPlaying,
+      bookId: summary?.bookId,
+    });
 
     reportPlayback({
       position,
@@ -282,6 +306,12 @@ export default function BookScreen() {
     });
 
     if (prevPlayingRef.current && !isPlaying) {
+      audioLogger.debug('Calling reportPlayback (stop event) from book.tsx', {
+        position,
+        duration,
+        isPlaying: false,
+        force: true,
+      });
       reportPlayback({
         position,
         duration,
@@ -291,7 +321,39 @@ export default function BookScreen() {
     }
 
     prevPlayingRef.current = isPlaying;
-  }, [audioReady, duration, isPlaying, position, reportPlayback]);
+  }, [audioReady, duration, isPlaying, position, reportPlayback, summary?.bookId]);
+
+  useEffect(() => {
+    audioLogger.debug('useEffect didJustFinish - verificando conclusão', {
+      didJustFinish,
+      audioReady,
+      duration,
+      bookId: summary?.bookId,
+    });
+
+    if (!didJustFinish) return;
+    if (!audioReady || !duration || duration <= 0) {
+      audioLogger.warn('didJustFinish ignored - audio not ready or invalid duration', {
+        audioReady,
+        duration,
+      });
+      return;
+    }
+
+    audioLogger.info('Audio finished - calling reportPlayback with completed=true', {
+      position: duration,
+      duration,
+      bookId: summary?.bookId,
+    });
+
+    reportPlayback({
+      position: duration,
+      duration,
+      isPlaying: false,
+      force: true,
+      completed: true,
+    });
+  }, [audioReady, didJustFinish, duration, reportPlayback, summary?.bookId]);
 
   useEffect(() => {
     latestPlaybackRef.current = {
