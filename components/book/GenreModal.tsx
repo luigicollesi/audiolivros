@@ -41,17 +41,17 @@ function GenreModalBase({
       <View style={[styles.overlay, { backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.35)' }]}>
         <View style={[
           styles.sheet,
-          { backgroundColor: theme.background, borderColor: theme.bookCard }
+          { backgroundColor: theme.background, borderColor: theme.detail }
         ]}>
-          <Text style={[styles.title]}>{title ?? t('genre.title')}</Text>
+          <Text style={[styles.title, { color: theme.tint }]}>{title ?? t('genre.title')}</Text>
 
           {/* Botão limpar filtro (opcional) */}
           {allowClear && (
             <Pressable
               onPress={() => { onSelect(null); onClose(); }}
-              style={[styles.clearBtn, { backgroundColor: theme.bookCard }]}
+              style={[styles.clearBtn, { backgroundColor: theme.bookCard, borderColor: theme.detail }]}
             >
-              <Text style={[styles.clearBtnText, { color: theme.text }]}>{t('genre.clear')}</Text>
+              <Text style={[styles.clearBtnText, { color: theme.tint }]}>{t('genre.clear')}</Text>
             </Pressable>
           )}
 
@@ -66,15 +66,15 @@ function GenreModalBase({
                   style={[
                     styles.option,
                     {
-                      backgroundColor: isSelected ? theme.tint : theme.bookCard,
-                      borderColor: isSelected ? theme.tint : theme.bookCard,
+                      backgroundColor: isSelected ? theme.secondary : theme.bookCard,
+                      borderColor: theme.detail,
                     },
                   ]}
                 >
                   <Text
                     style={[
                       styles.optionText,
-                      { color: isSelected ? (scheme === 'dark' ? '#000' : '#fff') : theme.text },
+                      { color: isSelected ? theme.tint : theme.text },
                     ]}
                     numberOfLines={1}
                   >
@@ -88,8 +88,11 @@ function GenreModalBase({
             style={{ maxHeight: 360 }}
           />
 
-          <Pressable onPress={onClose} style={[styles.closeBtn, { backgroundColor: theme.tint }]}>
-            <Text style={[styles.closeBtnText, { color: scheme === 'dark' ? '#000' : '#fff' }]}>{t('genre.close')}</Text>
+          <Pressable
+            onPress={onClose}
+            style={[styles.closeBtn, { backgroundColor: theme.secondary, borderColor: theme.detail }]}
+          >
+            <Text style={[styles.closeBtnText, { color: '#FFFFFF' }]}>{t('genre.close')}</Text>
           </Pressable>
         </View>
       </View>
@@ -121,6 +124,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 8,
     marginBottom: 10,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   clearBtnText: {
     fontWeight: '600',
@@ -142,6 +146,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
   },
   closeBtnText: {
     fontSize: 15,

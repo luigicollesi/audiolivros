@@ -8,11 +8,13 @@ import {
   Text,
   TextInput,
   View,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppleLoginButton, GoogleLoginButton, MicrosoftLoginButton } from '@/components/auth';
+import { PendingTermsPayload } from '@/components/auth/ProviderLoginButton';
 import { useAuth } from '@/auth/AuthContext';
 import { RootState } from '@/store';
 import { BASE_URL } from '@/constants/API';
@@ -45,19 +47,19 @@ const createMachineCode = () =>
 export default function LoginScreen() {
   const dispatch = useDispatch();
   const router = useRouter();
-  const { signIn } = useAuth();
+  const { signIn, authToken, setAuthToken } = useAuth();
   const { language, setLanguage, availableLanguages, t } = useTranslation();
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const isDark = scheme === 'dark';
   const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
   const placeholderColor = isDark ? '#9ca3af' : '#6b7280';
-  const primaryTextColor = isDark ? '#000' : '#fff';
   const [languagePopoverVisible, setLanguagePopoverVisible] = useState(false);
 
   const loading = useSelector((s: RootState) => Boolean(s.auth?.loading));
   const error = useSelector((s: RootState) => s.auth?.error ?? null);
   const pendingPhone = useSelector((s: RootState) => s.auth?.pendingPhone);
+  const pendingTerms = useSelector((s: RootState) => s.auth?.pendingTerms);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -66,9 +68,31 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (pendingPhone?.pendingToken) {
+      setAuthToken(pendingPhone.pendingToken);
       router.replace('/(auth)/phone');
     }
-  }, [pendingPhone?.pendingToken, router]);
+  }, [pendingPhone?.pendingToken, router, setAuthToken]);
+
+  const goToTerms = useCallback(
+    (token: string, expiresAt?: string | null) => {
+      const expiresParam = expiresAt ?? '';
+      InteractionManager.runAfterInteractions(() => {
+        router.replace(
+          `/(auth)/terms-accept?token=${encodeURIComponent(token)}&expiresAt=${encodeURIComponent(
+            expiresParam,
+          )}`,
+        );
+      });
+    },
+    [router],
+  );
+
+  useEffect(() => {
+    if (pendingTerms?.pendingToken) {
+      setAuthToken(pendingTerms.pendingToken);
+      goToTerms(pendingTerms.pendingToken, pendingTerms.termsPendingTokenExpiresAt ?? '');
+    }
+  }, [pendingTerms?.pendingToken, pendingTerms?.termsPendingTokenExpiresAt, goToTerms, setAuthToken]);
 
   const completeLogin = useCallback(
     async (payload: SessionPayload) => {
@@ -99,6 +123,7 @@ export default function LoginScreen() {
         pendingToken: payload.pendingToken,
       });
       const machineCode = createMachineCode();
+      setAuthToken(payload.pendingToken);
       dispatch({
         type: 'auth/loginRequiresPhone',
         payload: {
@@ -109,7 +134,25 @@ export default function LoginScreen() {
       });
       router.replace('/(auth)/phone');
     },
-    [dispatch, router]
+    [dispatch, router, setAuthToken]
+  );
+
+  const handleRequiresTerms = useCallback(
+    (payload: PendingTermsPayload) => {
+      authLogger.info('Login requer aceite de termos', {
+        pendingToken: payload.pendingToken,
+      });
+      setAuthToken(payload.pendingToken);
+      dispatch({
+        type: 'auth/loginRequiresTerms',
+        payload: {
+          pendingToken: payload.pendingToken,
+          termsPendingTokenExpiresAt: payload.termsPendingTokenExpiresAt ?? null,
+        },
+      });
+      goToTerms(payload.pendingToken, payload.termsPendingTokenExpiresAt ?? '');
+    },
+    [dispatch, goToTerms, setAuthToken]
   );
 
   const handleError = useCallback(
@@ -142,9 +185,13 @@ export default function LoginScreen() {
     dispatch({ type: 'auth/loginStart' });
     try {
       authLogger.info('Tentando login com email/senha', { email: normalizedEmail });
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (authToken) {
+        headers.Authorization = `Bearer ${authToken}`;
+      }
       const res = await fetch(`${BASE_URL}/auth/email/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           email: normalizedEmail,
           password: password,
@@ -157,6 +204,7 @@ export default function LoginScreen() {
 
       if (data?.requiresPhone && data?.pendingToken) {
         const machineCode = createMachineCode();
+        setAuthToken(data.pendingToken);
         dispatch({
           type: 'auth/loginRequiresPhone',
           payload: {
@@ -166,6 +214,19 @@ export default function LoginScreen() {
           },
         });
         router.replace('/(auth)/phone');
+        return;
+      }
+
+      if (data?.requiresTermsAcceptance && data?.termsPendingToken) {
+        setAuthToken(data.termsPendingToken);
+        dispatch({
+          type: 'auth/loginRequiresTerms',
+          payload: {
+            pendingToken: data.termsPendingToken,
+            termsPendingTokenExpiresAt: data.termsPendingTokenExpiresAt ?? null,
+          },
+        });
+        goToTerms(data.termsPendingToken, data.termsPendingTokenExpiresAt ?? '');
         return;
       }
 
@@ -189,7 +250,17 @@ export default function LoginScreen() {
     } finally {
       setLocalLoading(false);
     }
-  }, [canSubmitEmail, localLoading, email, password, completeLogin, dispatch, router]);
+  }, [
+    canSubmitEmail,
+    localLoading,
+    email,
+    password,
+    completeLogin,
+    dispatch,
+    goToTerms,
+    authToken,
+    setAuthToken,
+  ]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -270,7 +341,7 @@ export default function LoginScreen() {
               disabled={!canSubmitEmail || localLoading}
             >
               {localLoading ? (
-                <ActivityIndicator color={primaryTextColor} />
+                <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <Text style={styles.primaryBtnText}>{t('login.submit')}</Text>
               )}
@@ -292,24 +363,30 @@ export default function LoginScreen() {
           <View style={styles.providers}>
             {Platform.OS === 'ios' && (
               <AppleLoginButton
+                label={t('login.provider.apple')}
                 onSession={handleSession}
                 onRequiresPhone={handleRequiresPhone}
+                onRequiresTerms={handleRequiresTerms}
                 onError={handleError}
                 onLoadingChange={handleLoadingChange}
               />
             )}
 
             <GoogleLoginButton
+              label={t('login.provider.google')}
               onSession={handleSession}
               onRequiresPhone={handleRequiresPhone}
+              onRequiresTerms={handleRequiresTerms}
               onError={handleError}
               onLoadingChange={handleLoadingChange}
             />
 
             {(Platform.OS === 'ios' || Platform.OS === 'android') && (
               <MicrosoftLoginButton
+                label={t('login.provider.microsoft')}
                 onSession={handleSession}
                 onRequiresPhone={handleRequiresPhone}
+                onRequiresTerms={handleRequiresTerms}
                 onError={handleError}
                 onLoadingChange={handleLoadingChange}
               />
@@ -328,7 +405,15 @@ export default function LoginScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            {t('common.terms')}
+            Ao continuar, você concorda com nossos{' '}
+            <Text style={styles.footerLink} onPress={() => router.push('/terms')}>
+              Termos
+            </Text>{' '}
+            e{' '}
+            <Text style={styles.footerLink} onPress={() => router.push('/terms#privacy')}>
+              Política de Privacidade
+            </Text>
+            .
           </Text>
         </View>
       </View>
@@ -358,11 +443,11 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       borderRadius: 16,
       backgroundColor: colors.bookCard,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.tabIconDefault,
+      borderColor: colors.detail,
     },
     languageButtonText: {
       fontSize: 12,
-      color: colors.text,
+      color: colors.tint,
       fontWeight: '600',
     },
     languagePopover: {
@@ -371,8 +456,8 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       top: 38,
       borderRadius: 12,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.tabIconDefault,
-      backgroundColor: isDark ? 'rgba(24,24,24,0.95)' : 'rgba(255,255,255,0.97)',
+      borderColor: colors.detail,
+      backgroundColor: isDark ? 'rgba(6,20,42,0.95)' : 'rgba(255,255,255,0.97)',
       paddingVertical: 4,
       width: 200,
       shadowColor: '#000',
@@ -395,7 +480,7 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       paddingHorizontal: 14,
     },
     languageOptionSelected: {
-      backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(47,149,220,0.12)',
+      backgroundColor: isDark ? 'rgba(192,168,122,0.2)' : 'rgba(31,78,121,0.12)',
     },
     languageOptionText: {
       fontSize: 14,
@@ -405,13 +490,13 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       fontWeight: '600',
       color: colors.tint,
     },
-    title: { fontSize: 28, fontWeight: '800', color: colors.text },
+    title: { fontSize: 28, fontWeight: '800', color: colors.text, letterSpacing: 0.5 },
     subtitle: { fontSize: 14, color: colors.text, opacity: 0.7, textAlign: 'center' },
     body: { width: '100%', gap: 16, alignItems: 'center' },
     formCard: {
       width: '100%',
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.tabIconDefault,
+      borderColor: colors.detail,
       borderRadius: 12,
       padding: 16,
       gap: 12,
@@ -420,13 +505,13 @@ const createStyles = (colors: Palette, isDark: boolean) =>
     formTitle: { fontSize: 16, fontWeight: '700', textAlign: 'center', color: colors.text },
     input: {
       borderWidth: 1,
-      borderColor: colors.tabIconDefault,
+      borderColor: colors.detail,
       borderRadius: 10,
       paddingHorizontal: 12,
       paddingVertical: 12,
       fontSize: 15,
       color: colors.text,
-      backgroundColor: colors.background,
+      backgroundColor: colors.bookCard,
     },
     linkRight: { alignSelf: 'flex-end' },
     linkRightText: { color: colors.tint, fontSize: 12, fontWeight: '600' },
@@ -436,10 +521,12 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.tint,
+      backgroundColor: colors.secondary,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.detail,
     },
     primaryBtnDisabled: { opacity: 0.6 },
-    primaryBtnText: { color: isDark ? '#000' : '#fff', fontWeight: '600', fontSize: 16 },
+    primaryBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 16, letterSpacing: 0.3 },
     secondaryBtn: {
       marginTop: 4,
       paddingVertical: 10,
@@ -461,11 +548,12 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       width: '100%',
       gap: 12,
     },
-    dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.tabIconDefault },
+    dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.detail },
     dividerText: { fontSize: 12, color: colors.text, opacity: 0.6 },
     loadingRow: { alignItems: 'center', marginTop: 8 },
     loadingText: { marginTop: 6, fontSize: 12, color: colors.text, opacity: 0.7 },
     footer: { width: '100%', alignItems: 'center', marginTop: 24 },
     footerText: { fontSize: 12, color: colors.text, opacity: 0.6, textAlign: 'center' },
+    footerLink: { color: colors.tint, fontWeight: '600' },
     error: { color: '#ef4444', fontSize: 12, textAlign: 'center', marginTop: 8 },
   });

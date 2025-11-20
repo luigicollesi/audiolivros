@@ -1,5 +1,5 @@
 // src/app/book.tsx
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, useColorScheme } from 'react-native';
 
@@ -8,6 +8,7 @@ import { useAuthedFetch } from '@/auth/useAuthedFetch';
 import { Text, View } from '@/components/shared/Themed';
 import { BASE_URL } from '@/constants/API';
 import Colors from '@/constants/Colors';
+import { GENRES } from '@/constants/Genres';
 import { useOptimizedFavorites } from '@/hooks/useOptimizedFavorites';
 import { useSafeInsets } from '@/hooks/useSafeInsets';
 import { useSmartRefresh } from '@/hooks/useSmartRefresh';
@@ -27,6 +28,7 @@ export default function BookScreen() {
   const { title, author, year, cover_url, language } =
     useLocalSearchParams<{ title: string; author: string; year: string; cover_url: string; language?: string }>();
 
+  const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const theme = Colors[scheme];
   const insets = useSafeInsets();
@@ -36,7 +38,7 @@ export default function BookScreen() {
   const { scheduleRefresh } = useSmartRefresh();
   const { toggleFavorite, isPending } = useOptimizedFavorites();
   const token = session?.token ?? '';
-  const { language: appLanguage } = useTranslation();
+  const { language: appLanguage, t } = useTranslation();
 
   const imageUri = useMemo(() => {
     const path = cover_url?.startsWith('/') ? cover_url : `/${cover_url}`;
@@ -128,6 +130,46 @@ export default function BookScreen() {
   );
 
   const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const genreChips = useMemo(() => {
+    if (!summary?.genres || summary.genres.length === 0) return [];
+    const seen = new Set<string>();
+    return summary.genres
+      .map((raw) => {
+        if (typeof raw !== 'string') return null;
+        const label = raw.trim();
+        if (!label) return null;
+        const key = label.toLowerCase();
+        if (seen.has(key)) return null;
+        seen.add(key);
+        const match = GENRES.find(
+          (genre) =>
+            genre.name.toLowerCase() === key || genre.slug.toLowerCase() === key,
+        );
+        return {
+          label,
+          genreId: match?.id ?? null,
+        };
+      })
+      .filter(
+        (item): item is { label: string; genreId: number | null } => !!item,
+      );
+  }, [summary?.genres]);
+
+  const handleGenrePress = useCallback(
+    (genre: { label: string; genreId: number | null }) => {
+      const genreIdParam = genre.genreId ? String(genre.genreId) : undefined;
+      router.push({
+        pathname: '/(private)/index',
+        params: {
+          initialGenreName: genre.label,
+          initialGenreId: genreIdParam,
+          genreName: genre.label,
+          genreId: genreIdParam,
+        },
+      });
+    },
+    [router],
+  );
 
   useEffect(() => {
     if (summary && typeof summary.favorite === 'boolean') {
@@ -199,9 +241,9 @@ export default function BookScreen() {
     () => [
       styles.scrollContent,
       summaryExpanded ? styles.scrollContentExpanded : null,
-      { paddingBottom: AUDIO_BAR_HEIGHT + insets.bottom + 16 },
+      { paddingBottom: AUDIO_BAR_HEIGHT + insets.bottom + 16, paddingTop: insets.top + 12 },
     ],
-    [summaryExpanded, insets.bottom],
+    [summaryExpanded, insets.bottom, insets.top],
   );
 
   useEffect(() => {
@@ -268,6 +310,7 @@ export default function BookScreen() {
   useEffect(() => {
     audioLogger.debug('useEffect reportPlayback - verificando condições', {
       audioReady,
+      audioLoading,
       duration,
       isPlaying,
       position,
@@ -284,9 +327,29 @@ export default function BookScreen() {
       return;
     }
 
+    if (audioLoading) {
+      prevPlayingRef.current = isPlaying;
+      audioLogger.debug('Skipping reportPlayback - audio ainda carregando', {
+        bookId: summary?.bookId,
+        position,
+        duration,
+      });
+      return;
+    }
+
     if (!initialSyncCompletedRef.current) {
       prevPlayingRef.current = isPlaying;
       audioLogger.debug('Skipping reportPlayback - initial sync not completed');
+      return;
+    }
+
+    if (!isPlaying) {
+      prevPlayingRef.current = isPlaying;
+      audioLogger.debug('Skipping reportPlayback - player não está em execução', {
+        bookId: summary?.bookId,
+        position,
+        duration,
+      });
       return;
     }
 
@@ -305,23 +368,8 @@ export default function BookScreen() {
       isPlaying,
     });
 
-    if (prevPlayingRef.current && !isPlaying) {
-      audioLogger.debug('Calling reportPlayback (stop event) from book.tsx', {
-        position,
-        duration,
-        isPlaying: false,
-        force: true,
-      });
-      reportPlayback({
-        position,
-        duration,
-        isPlaying,
-        force: true,
-      });
-    }
-
     prevPlayingRef.current = isPlaying;
-  }, [audioReady, duration, isPlaying, position, reportPlayback, summary?.bookId]);
+  }, [audioReady, audioLoading, duration, isPlaying, position, reportPlayback, summary?.bookId]);
 
   useEffect(() => {
     audioLogger.debug('useEffect didJustFinish - verificando conclusão', {
@@ -384,7 +432,7 @@ export default function BookScreen() {
       markEngaged();
       initialSyncCompletedRef.current = true;
       void seekTo(value);
-      if (!audioReady || !duration || duration <= 0) return;
+      if (!audioReady || audioLoading || !duration || duration <= 0 || !isPlaying) return;
       reportPlayback({
         position: value,
         duration,
@@ -392,7 +440,7 @@ export default function BookScreen() {
         force: true,
       });
     },
-    [audioReady, duration, isPlaying, markEngaged, reportPlayback, seekTo],
+    [audioReady, audioLoading, duration, isPlaying, markEngaged, reportPlayback, seekTo],
   );
 
   const handleSkipBackward = useCallback(() => {
@@ -407,6 +455,13 @@ export default function BookScreen() {
 
   return (
     <>
+      <Pressable
+        style={[styles.backButton, { top: insets.top + 12 }]}
+        onPress={() => router.back()}
+        hitSlop={12}
+      >
+        <Text style={[styles.backButtonText, { color: theme.tint }]}>←</Text>
+      </Pressable>
       <ScrollView
         contentContainerStyle={scrollContentStyle}
         keyboardShouldPersistTaps="handled"
@@ -423,6 +478,44 @@ export default function BookScreen() {
           onToggleFavorite={handleToggleFavorite}
           disabling={isPending(title, author, lang) || loading || !summary}
         />
+
+        {genreChips.length > 0 && (
+          <View
+            style={[
+              styles.genreSection,
+              {
+                backgroundColor: theme.bookCard,
+                borderColor: theme.detail ?? '#e5e5e5',
+              },
+            ]}
+          >
+            <Text style={[styles.genreLabel, { color: theme.tint }]}>
+              {t('book.genres') ?? 'Gêneros'}
+            </Text>
+            <View style={styles.genreList}>
+              {genreChips.map((genre) => (
+                <Pressable
+                  key={`${genre.label}-${genre.genreId ?? 'unknown'}`}
+                  onPress={() => handleGenrePress(genre)}
+                  style={[
+                    styles.genreChip,
+                    {
+                      borderColor: theme.detail ?? '#d4d4d4',
+                      backgroundColor: scheme === 'dark'
+                        ? 'rgba(255,255,255,0.05)'
+                        : '#f4f4f5',
+                    },
+                  ]}
+                  hitSlop={8}
+                >
+                  <Text style={[styles.genreChipText, { color: theme.tint }]}>
+                    {genre.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
 
         <BookSummarySection
           loading={loading}
@@ -458,7 +551,7 @@ export default function BookScreen() {
             contentContainerStyle={[styles.overlayContent, { paddingBottom: AUDIO_BAR_HEIGHT + insets.bottom + 32 }]}
             showsVerticalScrollIndicator
           >
-            <Text style={styles.overlayTitle}>Resumo</Text>
+            <Text style={[styles.overlayTitle, { color: theme.tint }]}>Resumo</Text>
             <HighlightedSummary
               text={summary.summary}
               progress={audioReady ? progressRatio : 0}
@@ -471,7 +564,7 @@ export default function BookScreen() {
       <AudioBar
         bottomInset={insets.bottom}
         backgroundColor={theme.bookCard}
-        borderColor={scheme === 'dark' ? '#333' : theme.tabIconDefault}
+        borderColor={scheme === 'dark' ? '#333' : theme.detail ?? theme.border}
         audioReady={audioReady}
         audioLoading={audioLoading}
         audioError={audioErr}
@@ -493,6 +586,18 @@ export default function BookScreen() {
 }
 
 const styles = StyleSheet.create({
+  backButton: {
+    position: 'absolute',
+    left: 16,
+    zIndex: 50,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backButtonText: { fontSize: 20, fontWeight: '700' },
   scrollContent: {
     padding: 16,
   },
@@ -536,5 +641,31 @@ const styles = StyleSheet.create({
     aspectRatio: 2 / 3,
     borderRadius: 14,
     marginBottom: 16,
+  },
+  genreSection: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 16,
+    gap: 8,
+  },
+  genreLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  genreList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  genreChip: {
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  genreChipText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

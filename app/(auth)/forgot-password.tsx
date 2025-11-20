@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useDispatch } from 'react-redux';
 
+import { useAuth } from '@/auth/AuthContext';
 import { BASE_URL } from '@/constants/API';
 import { TextField } from '@/components/shared/TextField';
 import { AuthCard } from '@/components/auth/AuthCard';
@@ -17,12 +18,12 @@ const createMachineCode = () => `device-${Date.now().toString(36)}-${Math.random
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const dispatch = useDispatch();
+  const { authToken, setAuthToken } = useAuth();
   const params = useLocalSearchParams<{ resetToken?: string; email?: string }>();
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const isDark = scheme === 'dark';
-  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
-  const primaryTextColor = isDark ? '#000' : '#fff';
+  const styles = useMemo(() => createStyles(palette), [palette]);
 
   const [resetToken] = useState<string | null>(() =>
     typeof params.resetToken === 'string' ? params.resetToken : null
@@ -54,9 +55,11 @@ export default function ForgotPasswordScreen() {
     setLoading(true);
     try {
       authLogger.info('Salvando nova senha', { email, resetToken });
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (authToken) headers.Authorization = `Bearer ${authToken}`;
       const res = await fetch(`${BASE_URL}/auth/email/reset/confirm`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           resetToken,
           password: trimmedPassword,
@@ -69,6 +72,7 @@ export default function ForgotPasswordScreen() {
 
       if (data?.requiresPhone && data?.pendingToken) {
         const machineCode = createMachineCode();
+        setAuthToken(data.pendingToken);
         dispatch({
           type: 'auth/loginRequiresPhone',
           payload: {
@@ -80,6 +84,10 @@ export default function ForgotPasswordScreen() {
         authLogger.info('Senha redefinida, aguardando telefone', { email });
       }
 
+      if (!data?.requiresPhone) {
+        setAuthToken(null);
+      }
+
       router.replace('/(auth)/login');
       authLogger.info('Senha redefinida com sucesso', { email });
     } catch (err: any) {
@@ -89,7 +97,16 @@ export default function ForgotPasswordScreen() {
     } finally {
       setLoading(false);
     }
-  }, [resetToken, passwordsMatch, loading, trimmedPassword, dispatch, router]);
+  }, [
+    resetToken,
+    passwordsMatch,
+    loading,
+    trimmedPassword,
+    dispatch,
+    router,
+    authToken,
+    setAuthToken,
+  ]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -126,7 +143,7 @@ export default function ForgotPasswordScreen() {
             disabled={!passwordsMatch || loading}
           >
             {loading ? (
-              <ActivityIndicator color={primaryTextColor} />
+              <ActivityIndicator color={palette.background} />
             ) : (
               <Text style={styles.primaryBtnText}>Salvar e continuar</Text>
             )}
@@ -143,7 +160,7 @@ export default function ForgotPasswordScreen() {
 
 type Palette = typeof Colors.light;
 
-const createStyles = (colors: Palette, isDark: boolean) =>
+const createStyles = (colors: Palette) =>
   StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
     container: {
@@ -160,10 +177,12 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.tint,
+      backgroundColor: colors.secondary,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.detail,
     },
     primaryBtnDisabled: { opacity: 0.6 },
-    primaryBtnText: { color: isDark ? '#000' : '#fff', fontWeight: '600', fontSize: 16 },
+    primaryBtnText: { color: colors.background, fontWeight: '700', fontSize: 16 },
     linkBtn: { paddingVertical: 10, alignItems: 'center' },
     linkText: { color: colors.tint, fontWeight: '600' },
     error: { color: '#ef4444', fontSize: 13, textAlign: 'center' },

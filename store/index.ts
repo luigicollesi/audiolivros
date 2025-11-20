@@ -21,11 +21,17 @@ type AuthPendingPhone = {
   ddd?: string | null;
 };
 
+type AuthPendingTerms = {
+  pendingToken: string;
+  termsPendingTokenExpiresAt?: string | null;
+};
+
 type AuthState = {
   loading: boolean;
   error: string | null;
   session: AuthSession | null;
   pendingPhone: AuthPendingPhone | null;
+  pendingTerms: AuthPendingTerms | null;
 };
 
 const authInitial: AuthState = {
@@ -33,6 +39,7 @@ const authInitial: AuthState = {
   error: null,
   session: null,
   pendingPhone: null,
+  pendingTerms: null,
 };
 
 function authReducer(state: AuthState = authInitial, action: any): AuthState {
@@ -46,6 +53,7 @@ function authReducer(state: AuthState = authInitial, action: any): AuthState {
         error: null,
         session: action.payload as AuthSession,
         pendingPhone: null,
+        pendingTerms: null,
       };
     case 'auth/loginError':
       return { ...state, loading: false, error: action.payload };
@@ -56,6 +64,21 @@ function authReducer(state: AuthState = authInitial, action: any): AuthState {
         error: null,
         pendingPhone: action.payload as AuthPendingPhone,
         session: null,
+        pendingTerms: null,
+      };
+    case 'auth/loginRequiresTerms':
+      return {
+        ...state,
+        loading: false,
+        error: null,
+        pendingTerms: action.payload as AuthPendingTerms,
+        session: null,
+        pendingPhone: null,
+      };
+    case 'auth/clearPendingTerms':
+      return {
+        ...state,
+        pendingTerms: null,
       };
     case 'auth/phoneRequestSuccess':
       return {

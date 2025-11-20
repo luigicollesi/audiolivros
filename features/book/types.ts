@@ -9,6 +9,7 @@ export type SummaryResponse = {
     progress_percent?: number;
     updated_at?: string;
   } | null;
+  genres?: string[];
 };
 
 export type AuthedFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;

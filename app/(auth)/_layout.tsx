@@ -1,13 +1,7 @@
 // app/(auth)/_layout.tsx
-import { Stack, Redirect } from 'expo-router';
-import { useAuth } from '@/auth/AuthContext';
+import { Stack } from 'expo-router';
 
 export default function AuthLayout() {
-  const { session, loading } = useAuth();
-
-  if (loading) return null;
-  if (session?.token) return <Redirect href="/(private)" />;
-
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="login" />
@@ -19,6 +13,7 @@ export default function AuthLayout() {
       <Stack.Screen name="forgot-password" />
       <Stack.Screen name="phone" />
       <Stack.Screen name="code" />
+      <Stack.Screen name="terms-accept" />
     </Stack>
   );
 }

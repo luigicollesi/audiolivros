@@ -187,13 +187,13 @@ const createStyles = (colors: Palette) =>
       gap: 16,
       backgroundColor: colors.bookCard,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.tabIconDefault,
+      borderColor: colors.detail,
     },
     title: {
       fontSize: 22,
       fontWeight: '800',
       textAlign: 'center',
-      color: colors.text,
+      color: colors.tint,
     },
     description: {
       fontSize: 14,

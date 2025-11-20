@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useDispatch } from 'react-redux';
 
+import { useAuth } from '@/auth/AuthContext';
 import { BASE_URL } from '@/constants/API';
 import { TextField } from '@/components/shared/TextField';
 import { AuthCard } from '@/components/auth/AuthCard';
@@ -19,12 +20,12 @@ const createMachineCode = () =>
 export default function EmailPasswordScreen() {
   const router = useRouter();
   const dispatch = useDispatch();
+  const { authToken, setAuthToken } = useAuth();
   const { registerToken, email } = useLocalSearchParams<{ registerToken?: string; email?: string }>();
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const isDark = scheme === 'dark';
-  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
-  const primaryTextColor = isDark ? '#000' : '#fff';
+  const styles = useMemo(() => createStyles(palette), [palette]);
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -64,9 +65,11 @@ export default function EmailPasswordScreen() {
         email: normalizedEmail,
         registerToken: normalizedRegisterToken,
       });
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (authToken) headers.Authorization = `Bearer ${authToken}`;
       const res = await fetch(`${BASE_URL}/auth/email/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           registerToken: normalizedRegisterToken,
           password: trimmedPassword,
@@ -79,6 +82,7 @@ export default function EmailPasswordScreen() {
       }
 
       const machineCode = createMachineCode();
+      setAuthToken(data.pendingToken);
       dispatch({
         type: 'auth/loginRequiresPhone',
         payload: {
@@ -101,7 +105,17 @@ export default function EmailPasswordScreen() {
     } finally {
       setLoading(false);
     }
-  }, [normalizedRegisterToken, passwordsMatch, loading, trimmedPassword, name, dispatch, router]);
+  }, [
+    normalizedRegisterToken,
+    passwordsMatch,
+    loading,
+    trimmedPassword,
+    name,
+    dispatch,
+    router,
+    authToken,
+    setAuthToken,
+  ]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -150,7 +164,7 @@ export default function EmailPasswordScreen() {
             disabled={!passwordsMatch || loading}
           >
             {loading ? (
-              <ActivityIndicator color={primaryTextColor} />
+              <ActivityIndicator color={palette.background} />
             ) : (
               <Text style={styles.primaryBtnText}>Continuar</Text>
             )}
@@ -167,7 +181,7 @@ export default function EmailPasswordScreen() {
 
 type Palette = typeof Colors.light;
 
-const createStyles = (colors: Palette, isDark: boolean) =>
+const createStyles = (colors: Palette) =>
   StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
     container: {
@@ -184,10 +198,12 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.tint,
+      backgroundColor: colors.secondary,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.detail,
     },
     primaryBtnDisabled: { opacity: 0.6 },
-    primaryBtnText: { color: isDark ? '#000' : '#fff', fontWeight: '600', fontSize: 16 },
+    primaryBtnText: { color: colors.background, fontWeight: '700', fontSize: 16 },
     secondaryBtn: { alignItems: 'center', paddingVertical: 10 },
     secondaryBtnText: { color: colors.tint, fontWeight: '600' },
     error: { color: '#ef4444', fontSize: 13, textAlign: 'center' },

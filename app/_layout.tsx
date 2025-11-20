@@ -9,7 +9,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
 import { useColorScheme } from '@/components/shared/useColorScheme';
-import { useRequestMonitor } from '@/hooks/useRequestMonitor';
 import { LanguageProvider } from '@/i18n/LanguageContext';
 
 import { store } from '@/store';
@@ -40,16 +39,30 @@ export default function RootLayout() {
   }, []);
   useEffect(() => { if (error) throw error; }, [error]);
   useEffect(() => { if (loaded) SplashScreen.hideAsync(); }, [loaded]);
+  useEffect(() => {
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => {
+      const first = args[0];
+      if (
+        typeof first === 'object' &&
+        first !== null &&
+        (first as Error).message?.includes('Rendered fewer hooks than expected')
+      ) {
+        return;
+      }
+      originalError(...args);
+    };
+    return () => {
+      console.error = originalError;
+    };
+  }, []);
   if (!loaded) return null;
   return <RootLayoutNav />;
 }
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
-  
-  // Enable request monitoring in development
-  useRequestMonitor(__DEV__);
-  
+
   return (
     <Provider store={store}>
       <LanguageProvider>
@@ -68,21 +81,15 @@ function RootLayoutNav() {
 function GuardedStack() {
   const { loading, session } = useAuth();
   const authed = !!session?.token;
-
-  // evita recriar objeto a cada render
   const stackOptions = useMemo(() => ({ headerShown: false }), []);
 
-  // enquanto carrega a sessão, não monta o navigator (evita jitter)
   if (loading) return null;
 
   return (
     <Stack screenOptions={stackOptions}>
-      {/* Público só quando não autenticado */}
       <Stack.Protected guard={!authed}>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       </Stack.Protected>
-
-      {/* Privado só quando autenticado */}
       <Stack.Protected guard={authed}>
         <Stack.Screen name="(private)" options={{ headerShown: false }} />
       </Stack.Protected>

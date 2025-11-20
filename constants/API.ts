@@ -1,4 +1,4 @@
-const BASE_URL = 'http://10.2.128.102:3000';
+const BASE_URL = 'http://10.0.0.106:3000';
 
 // GOOGLE
 const GOOGLE_WEB_CLIENT_ID = "1008601201175-8m9m9niatanb69s5phm4dlv9i4rt9ha6.apps.googleusercontent.com"; // Web client ID para audience do idToken e/ou serverAuthCode

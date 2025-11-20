@@ -109,6 +109,10 @@ export function useOptimizedBooks(
       author: typeof item.author === 'string' && item.author.trim()
         ? item.author
         : 'Autor desconhecido',
+      listeningProgressPercent:
+        typeof item.listeningProgressPercent === 'number'
+          ? item.listeningProgressPercent
+          : null,
     }));
 
     return {
@@ -202,6 +206,10 @@ export function useOptimizedBooks(
                 author: typeof item.author === 'string' && item.author.trim()
                   ? item.author
                   : 'Autor desconhecido',
+                listeningProgressPercent:
+                  typeof item.listeningProgressPercent === 'number'
+                    ? item.listeningProgressPercent
+                    : null,
               })),
               total: typeof data.total === 'number' ? data.total : data.items?.length || 0,
             };
@@ -256,6 +264,10 @@ export function useOptimizedBooks(
                 author: typeof item.author === 'string' && item.author.trim()
                   ? item.author
                   : 'Autor desconhecido',
+                listeningProgressPercent:
+                  typeof item.listeningProgressPercent === 'number'
+                    ? item.listeningProgressPercent
+                    : null,
               })),
               total: typeof data.total === 'number' ? data.total : data.items?.length || 0,
             };

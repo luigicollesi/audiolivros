@@ -28,13 +28,12 @@ const sanitizeDigits = (value: string, max: number) =>
 export default function PhoneScreen() {
   const dispatch = useDispatch();
   const router = useRouter();
-  const { session } = useAuth();
+  const { session, authToken, setAuthToken } = useAuth();
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const isDark = scheme === 'dark';
   const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
   const placeholderColor = isDark ? '#9ca3af' : '#6b7280';
-  const primaryTextColor = isDark ? '#000' : '#fff';
   const { language: baseLanguage, t } = useTranslation();
 
   const pending = useSelector((s: RootState) => s.auth?.pendingPhone);
@@ -59,6 +58,12 @@ export default function PhoneScreen() {
       router.replace('/(auth)/login');
     }
   }, [pending, router]);
+
+  useEffect(() => {
+    if (pending?.pendingToken) {
+      setAuthToken(pending.pendingToken);
+    }
+  }, [pending?.pendingToken, setAuthToken]);
 
   if (!pending) {
     return null;
@@ -104,9 +109,11 @@ export default function PhoneScreen() {
       authLogger.info('Solicitando código de telefone', {
         phone: fullPhone,
       });
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (authToken) headers.Authorization = `Bearer ${authToken}`;
       const res = await fetch(`${BASE_URL}/auth/phone/request-code`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           pendingToken: pending.pendingToken,
           machineCode: pending.machineCode,
@@ -138,7 +145,16 @@ export default function PhoneScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [pending?.pendingToken, pending?.machineCode, ddd, number, dispatch, router, language]);
+  }, [
+    pending?.pendingToken,
+    pending?.machineCode,
+    ddd,
+    number,
+    dispatch,
+    router,
+    language,
+    authToken,
+  ]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -189,7 +205,7 @@ export default function PhoneScreen() {
           disabled={submitting}
         >
           {submitting ? (
-            <ActivityIndicator color={primaryTextColor} />
+            <ActivityIndicator color={palette.background} />
           ) : (
             <Text style={styles.submitBtnText}>{t('phone.submit')}</Text>
           )}
@@ -213,7 +229,7 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       backgroundColor: colors.background,
     },
     header: { gap: 8, alignItems: 'center' },
-    title: { fontSize: 24, fontWeight: '800', textAlign: 'center', color: colors.text },
+    title: { fontSize: 24, fontWeight: '800', textAlign: 'center', color: colors.tint },
     subtitle: { fontSize: 14, color: colors.text, opacity: 0.7, textAlign: 'center' },
     inputRow: {
       flexDirection: 'row',
@@ -225,17 +241,19 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       paddingVertical: 14,
       borderRadius: 12,
       backgroundColor: colors.bookCard,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.detail,
     },
-    countryCodeText: { fontSize: 16, fontWeight: '600', color: colors.text },
+    countryCodeText: { fontSize: 16, fontWeight: '600', color: colors.tint },
     textInput: {
       borderWidth: 1,
-      borderColor: colors.tabIconDefault,
+      borderColor: colors.detail,
       borderRadius: 12,
       paddingHorizontal: 12,
       paddingVertical: 14,
       fontSize: 16,
       color: colors.text,
-      backgroundColor: isDark ? colors.bookCard : colors.background,
+      backgroundColor: colors.bookCard,
     },
     dddInput: { width: 70, textAlign: 'center' },
     phoneInput: { flex: 1 },
@@ -244,11 +262,13 @@ const createStyles = (colors: Palette, isDark: boolean) =>
     submitBtn: {
       height: 56,
       borderRadius: 16,
-      backgroundColor: colors.tint,
+      backgroundColor: colors.secondary,
       alignItems: 'center',
       justifyContent: 'center',
       marginTop: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.detail,
     },
     submitBtnDisabled: { opacity: 0.7 },
-    submitBtnText: { color: isDark ? '#000' : '#fff', fontSize: 18, fontWeight: '700' },
+    submitBtnText: { color: colors.background, fontSize: 18, fontWeight: '700' },
   });

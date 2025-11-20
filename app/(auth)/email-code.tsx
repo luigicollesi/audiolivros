@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
+import { useAuth } from '@/auth/AuthContext';
 import { BASE_URL } from '@/constants/API';
 import { CodeVerificationView } from '@/components/auth/CodeVerificationView';
 import { authLogger } from '@/utils/logger';
@@ -14,6 +15,7 @@ const RESEND_COOLDOWN_SECONDS = 45;
 
 export default function EmailCodeScreen() {
   const router = useRouter();
+  const { authToken, setAuthToken } = useAuth();
   const params = useLocalSearchParams<{ pendingToken?: string; email?: string }>();
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
@@ -38,6 +40,12 @@ export default function EmailCodeScreen() {
   }, [pendingToken, email, router]);
 
   useEffect(() => {
+    if (pendingToken) {
+      setAuthToken(pendingToken);
+    }
+  }, [pendingToken, setAuthToken]);
+
+  useEffect(() => {
     if (resendCooldown <= 0) return;
     const timer = setInterval(() => {
       setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
@@ -55,9 +63,11 @@ export default function EmailCodeScreen() {
     setLoading(true);
     try {
       authLogger.info('Verificando código de email', { email, pendingToken });
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (authToken) headers.Authorization = `Bearer ${authToken}`;
       const res = await fetch(`${BASE_URL}/auth/email/verify-code`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ pendingToken, code }),
       });
       const data = await res.json().catch(() => ({}));
@@ -77,7 +87,7 @@ export default function EmailCodeScreen() {
     } finally {
       setLoading(false);
     }
-  }, [pendingToken, email, code, router]);
+  }, [pendingToken, email, code, router, authToken]);
 
   const resendCode = useCallback(async () => {
     if (!email || resendCooldown > 0 || resendLoading) return;
@@ -85,9 +95,11 @@ export default function EmailCodeScreen() {
     setResendLoading(true);
     try {
       authLogger.info('Solicitando reenvio de código de email', { email });
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (authToken) headers.Authorization = `Bearer ${authToken}`;
       const res = await fetch(`${BASE_URL}/auth/email/request-code`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ email }),
       });
       const data = await res.json().catch(() => ({}));
@@ -95,6 +107,7 @@ export default function EmailCodeScreen() {
         throw new Error(data?.message || `Falha: ${res.status}`);
       }
       setPendingToken(data.token);
+      setAuthToken(data.token);
       setCode('');
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
       router.setParams?.({ pendingToken: data.token, email });
@@ -106,7 +119,7 @@ export default function EmailCodeScreen() {
     } finally {
       setResendLoading(false);
     }
-  }, [email, resendCooldown, resendLoading, router]);
+  }, [email, resendCooldown, resendLoading, router, authToken, setAuthToken]);
 
   return (
     <SafeAreaView style={styles.safe}>

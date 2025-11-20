@@ -35,7 +35,9 @@ export function BookInfo({
   return (
     <View style={[styles.container, { backgroundColor }]}> 
       <View style={styles.headerRow}>
-        {!!title && <Text style={styles.title}>{title}</Text>}
+        <View style={styles.titleWrapper}>
+          {!!title && <Text style={styles.title}>{title}</Text>}
+        </View>
         {onToggleFavorite && (
           <Pressable
             onPress={onToggleFavorite}
@@ -63,37 +65,35 @@ const createStyles = (colors: typeof Colors.light, isDark: boolean) =>
       borderRadius: 12,
       gap: 6,
       marginBottom: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.detail,
     },
     headerRow: {
       flexDirection: 'row',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       justifyContent: 'space-between',
       gap: 12,
     },
-    title: { fontSize: 20, fontWeight: '700' },
-    meta: { fontSize: 14, opacity: 0.8 },
+    titleWrapper: { flex: 1 },
+    title: { fontSize: 20, fontWeight: '700', color: colors.tint, letterSpacing: 0.2, flexWrap: 'wrap' },
+    meta: { fontSize: 14, opacity: 0.85, color: colors.text },
     favoriteBtn: {
       width: 32,
       height: 32,
       borderRadius: 16,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.tabIconDefault,
+      borderColor: colors.detail,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: isDark ? colors.bookCard : colors.background,
+      backgroundColor: colors.bookCard,
     },
     favoriteBtnActive: {
-      backgroundColor: colors.tint,
-      borderColor: colors.tint,
+      backgroundColor: colors.secondary,
+      borderColor: colors.detail,
     },
     favoriteBtnDisabled: {
       opacity: 0.5,
     },
-    favoriteText: {
-      fontSize: 18,
-      color: colors.tint,
-    },
-    favoriteTextActive: {
-      color: isDark ? '#000' : '#fff',
-    },
+    favoriteText: { fontSize: 18, color: colors.tint },
+    favoriteTextActive: { color: colors.background },
   });

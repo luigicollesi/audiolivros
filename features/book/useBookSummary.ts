@@ -39,6 +39,11 @@ export function useBookSummary(url: string | null | undefined, fetchJSON: FetchJ
           favorite: Boolean(data.favorite),
           bookId: typeof data.bookId === 'string' ? data.bookId : undefined,
           listeningProgress: data.listeningProgress ?? null,
+          genres: Array.isArray(data.genres)
+            ? data.genres
+                .map((item) => (typeof item === 'string' ? item.trim() : ''))
+                .filter((item) => item.length > 0)
+            : undefined,
         });
         summariesLogger.info('Resumo carregado com sucesso', { url, favorite: Boolean(data.favorite) });
       } catch (err: any) {

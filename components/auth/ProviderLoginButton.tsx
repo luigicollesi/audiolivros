@@ -29,11 +29,17 @@ export type PendingPhonePayload = {
   pendingTokenExpiresAt?: string | null;
 };
 
+export type PendingTermsPayload = {
+  pendingToken: string;
+  termsPendingTokenExpiresAt?: string | null;
+};
+
 export type MockProvider = 'google' | 'apple' | 'microsoft';
 
 export type ProviderCallbacks = {
   onSession?: (payload: SessionPayload) => void | Promise<void>;
   onRequiresPhone?: (payload: PendingPhonePayload) => void | Promise<void>;
+  onRequiresTerms?: (payload: PendingTermsPayload) => void | Promise<void>;
   onError?: (message: string) => void;
   onLoadingChange?: (loading: boolean) => void;
 };
@@ -59,6 +65,7 @@ export function createMockProviderButton(config: ProviderStaticConfig) {
     apiPath = '/auth/id-token',
     onSession,
     onRequiresPhone,
+    onRequiresTerms,
     onError,
     onLoadingChange,
   }: ProviderButtonBaseProps) {
@@ -66,6 +73,8 @@ export function createMockProviderButton(config: ProviderStaticConfig) {
     const scheme = useColorScheme() ?? 'light';
     const palette = Colors[scheme];
     const buttonLabel = label ?? config.defaultLabel;
+    const buttonTextColor = palette.text;
+    const buttonBackground = Colors.dark.secondary;
 
     const handlePress = useCallback(async () => {
       if (loading || disabled) return;
@@ -115,6 +124,21 @@ export function createMockProviderButton(config: ProviderStaticConfig) {
           return;
         }
 
+        if (json?.requiresTermsAcceptance) {
+          const pendingToken = String(json?.termsPendingToken || '');
+          if (!pendingToken) {
+            throw new Error('Resposta não contém termsPendingToken.');
+          }
+          await onRequiresTerms?.({
+            pendingToken,
+            termsPendingTokenExpiresAt: json?.termsPendingTokenExpiresAt ?? null,
+          });
+          authLogger.info('Provider login requer aceite de termos', {
+            provider: config.provider,
+          });
+          return;
+        }
+
         const { sessionToken, expiresAt, user } = json as {
           sessionToken: string;
           expiresAt?: string | null;
@@ -146,19 +170,27 @@ export function createMockProviderButton(config: ProviderStaticConfig) {
       onError,
       onLoadingChange,
       onRequiresPhone,
+      onRequiresTerms,
       onSession,
     ]);
 
     return (
       <Pressable
-        style={[styles.btn, { backgroundColor: palette.bookCard, borderColor: palette.tabIconDefault }, (disabled || loading) && styles.btnDisabled]}
+        style={[
+          styles.btn,
+          {
+            backgroundColor: buttonBackground,
+            borderColor: palette.detail,
+          },
+          (disabled || loading) && styles.btnDisabled,
+        ]}
         onPress={handlePress}
         accessibilityRole="button"
         accessibilityLabel={buttonLabel}
       >
         <View style={styles.row}>
-          <Text style={[styles.label, { color: palette.text }]}>{buttonLabel}</Text>
-          {loading && <ActivityIndicator color={palette.tint} />}
+          <Text style={[styles.label, { color: buttonTextColor }]}>{buttonLabel}</Text>
+          {loading && <ActivityIndicator color={buttonTextColor} />}
         </View>
       </Pressable>
     );

@@ -1,6 +1,13 @@
 // app/(auth)/code.tsx
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+  InteractionManager,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
@@ -33,7 +40,7 @@ const sanitizeDigits = (value: string) => value.replace(/\D/g, '');
 export default function CodeScreen() {
   const dispatch = useDispatch();
   const router = useRouter();
-  const { signIn } = useAuth();
+  const { signIn, authToken, setAuthToken } = useAuth();
   const pending = useSelector((s: RootState) => s.auth?.pendingPhone);
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
@@ -49,6 +56,12 @@ export default function CodeScreen() {
       router.replace('/(auth)/login');
     }
   }, [pending?.pendingToken, pending?.machineCode, router]);
+
+  useEffect(() => {
+    if (pending?.pendingToken) {
+      setAuthToken(pending.pendingToken);
+    }
+  }, [pending?.pendingToken, setAuthToken]);
 
   if (!pending?.pendingToken || !pending?.machineCode) {
     return null;
@@ -86,9 +99,11 @@ export default function CodeScreen() {
       authLogger.info('Validando código de telefone', {
         pendingToken: pending.pendingToken,
       });
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (authToken) headers.Authorization = `Bearer ${authToken}`;
       const res = await fetch(`${BASE_URL}/auth/phone/verify-code`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           pendingToken: pending.pendingToken,
           machineCode: pending.machineCode,
@@ -98,6 +113,30 @@ export default function CodeScreen() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data?.message || `Falha: ${res.status}`);
+      }
+
+      if (data?.requiresTermsAcceptance && data?.termsPendingToken) {
+        const pendingToken = String(data.termsPendingToken);
+        const expiresAtParam = data?.termsPendingTokenExpiresAt ?? null;
+        setAuthToken(pendingToken);
+        dispatch({
+          type: 'auth/loginRequiresTerms',
+          payload: {
+            pendingToken,
+            termsPendingTokenExpiresAt: expiresAtParam,
+          },
+        });
+        authLogger.info('Telefone verificado, aguardando aceite de termos');
+        InteractionManager.runAfterInteractions(() => {
+          router.replace({
+            pathname: '/(auth)/terms-accept',
+            params: {
+              token: pendingToken,
+              expiresAt: expiresAtParam ?? '',
+            },
+          });
+        });
+        return;
       }
 
       const { sessionToken, expiresAt, user } = data as {
@@ -126,7 +165,16 @@ export default function CodeScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [pending?.pendingToken, pending?.machineCode, code, router, completeLogin]);
+  }, [
+    pending?.pendingToken,
+    pending?.machineCode,
+    code,
+    router,
+    completeLogin,
+    authToken,
+    dispatch,
+    setAuthToken,
+  ]);
 
   const phoneLabel = useMemo(() => {
     if (!pending?.phone) return null;

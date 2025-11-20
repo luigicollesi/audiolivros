@@ -290,9 +290,9 @@ export default function LibraryScreen() {
     <View
       style={[styles.container, { paddingTop: insets.top + 6, backgroundColor: palette.background }]}
     > 
-      <View style={styles.header}>
-        <Text style={styles.title}>{t('library.heading')}</Text>
-        <Text style={styles.pageCount}>
+      <View style={[styles.header, { backgroundColor: palette.bookCard }]}>
+        <Text style={[styles.title, { color: palette.detail }]}>{t('library.heading')}</Text>
+        <Text style={[styles.pageCount, { color: palette.detail }]}>
           {maxPageIndex > 0 ? `${currentPageIndex + 1} / ${maxPageIndex + 1}` : ''}
         </Text>
       </View>
@@ -330,7 +330,7 @@ export default function LibraryScreen() {
       )}
 
       <View
-        style={[styles.footer, { borderTopColor: palette.tabIconDefault, paddingBottom: insets.bottom }]}
+        style={[styles.footer, { borderTopColor: palette.detail ?? palette.border, paddingBottom: insets.bottom }]}
       >
         <Text style={[styles.footerText, { color: palette.text }]}>
           {total == null
@@ -347,9 +347,12 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     justifyContent: 'space-between',
+    borderRadius: 18,
+    minHeight: 64,
+    gap: 12,
   },
   title: {
     fontSize: 22,
@@ -357,7 +360,8 @@ const styles = StyleSheet.create({
   },
   pageCount: {
     fontSize: 16,
-    opacity: 0.7,
+    opacity: 0.85,
+    fontWeight: '600',
   },
   page: { flex: 1 },
   pageLoading: {

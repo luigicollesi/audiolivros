@@ -3,6 +3,11 @@ import { BASE_URL } from '@/constants/API';
 import { authLogger } from '@/utils/logger';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { normalizeLanguage, DEFAULT_LANGUAGE } from '@/i18n/translations';
+import {
+  clearStoredAuthToken,
+  persistStoredAuthToken,
+  readStoredAuthToken,
+} from '@/auth/tokenStorage';
 import React, {
   createContext,
   useCallback,
@@ -32,6 +37,8 @@ type AuthContextType = {
   favoritesDirty: boolean;
   markFavoritesDirty: () => void;
   acknowledgeFavorites: () => void;
+  authToken: string | null;
+  setAuthToken: (token: string | null) => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -100,6 +107,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [favoritesDirty, setFavoritesDirty] = useState(true);
+  const [authToken, setAuthTokenState] = useState<string | null>(null);
 
   const { setLanguage, language: currentLanguage } = useLanguage();
 
@@ -120,6 +128,10 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     let mounted = true;
     (async () => {
       try {
+        const storedToken = await readStoredAuthToken();
+        if (mounted && storedToken) {
+          setAuthTokenState(storedToken);
+        }
         // ex: ler do AsyncStorage
         // const raw = await AsyncStorage.getItem('session');
         // if (mounted && raw) setSession(JSON.parse(raw));
@@ -127,12 +139,37 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         if (mounted) setLoading(false);
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
+
+  const syncStoredToken = useCallback((token: string | null) => {
+    if (token) {
+      persistStoredAuthToken(token).catch((err) => {
+        authLogger.warn('Falha ao persistir token de autenticação.', err);
+      });
+      return;
+    }
+    clearStoredAuthToken().catch((err) => {
+      authLogger.warn('Falha ao limpar token de autenticação persistido.', err);
+    });
+  }, []);
+
+  const setAuthToken = useCallback(
+    (token: string | null) => {
+      const normalized = typeof token === 'string' ? token.trim() : '';
+      const nextToken = normalized ? normalized : null;
+      setAuthTokenState(nextToken);
+      syncStoredToken(nextToken);
+    },
+    [syncStoredToken],
+  );
 
   const signIn = useCallback((s: NonNullable<Session>) => {
     sessionRef.current = s;
     setSession(s);
+    setAuthToken(s.token);
     setFavoritesDirty(true);
     const nextLanguage = normalizeLanguage(s.user.language ?? currentLanguage ?? DEFAULT_LANGUAGE);
     setLanguage(nextLanguage);
@@ -146,6 +183,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     clearRefreshTimer();
     sessionRef.current = null;
     setSession(null);
+    setAuthToken(null);
     setFavoritesDirty(true);
     authLogger.info('Sessão encerrada');
   }, [clearRefreshTimer]);
@@ -303,6 +341,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       favoritesDirty,
       markFavoritesDirty,
       acknowledgeFavorites,
+      authToken,
+      setAuthToken,
     }),
     [
       session,
@@ -314,6 +354,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       favoritesDirty,
       markFavoritesDirty,
       acknowledgeFavorites,
+      authToken,
+      setAuthToken,
     ]
   );
 

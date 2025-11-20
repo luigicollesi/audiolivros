@@ -44,7 +44,7 @@ export function CodeVerificationView({
   const palette = Colors[scheme];
   const isDark = scheme === 'dark';
   const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
-  const primaryTextColor = isDark ? '#000' : '#fff';
+  const indicatorColor = palette.tint;
   const digits = useMemo(() => {
     const arr = new Array(codeLength).fill('');
     const safe = code.replace(/\D/g, '').slice(0, codeLength);
@@ -93,7 +93,7 @@ export function CodeVerificationView({
         disabled={code.length !== codeLength || loading}
       >
         {loading ? (
-          <ActivityIndicator color={primaryTextColor} />
+          <ActivityIndicator color={indicatorColor} />
         ) : (
           <Text style={styles.primaryBtnText}>{submitLabel}</Text>
         )}
@@ -121,8 +121,7 @@ export function CodeVerificationView({
 type Palette = typeof Colors.light;
 
 const createStyles = (colors: Palette, isDark: boolean) => {
-  const secondaryBackground = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(47,149,220,0.12)';
-  const primaryTextColor = isDark ? '#000' : '#fff';
+  const secondaryBackground = colors.bookCard;
 
   return StyleSheet.create({
     container: {
@@ -130,7 +129,7 @@ const createStyles = (colors: Palette, isDark: boolean) => {
       width: '100%',
       alignItems: 'center',
     },
-    title: { fontSize: 22, fontWeight: '800', textAlign: 'center', color: colors.text },
+    title: { fontSize: 22, fontWeight: '800', textAlign: 'center', color: colors.tint, letterSpacing: 0.3 },
     subtitle: { fontSize: 14, color: colors.text, opacity: 0.7, textAlign: 'center' },
     codeBoxes: { flexDirection: 'row', gap: 10 },
     codeBox: {
@@ -138,10 +137,10 @@ const createStyles = (colors: Palette, isDark: boolean) => {
       height: 58,
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: colors.tabIconDefault,
+      borderColor: colors.detail,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: isDark ? colors.bookCard : colors.background,
+      backgroundColor: colors.bookCard,
     },
     codeDigit: { fontSize: 22, fontWeight: '700', color: colors.text },
     hiddenInput: { position: 'absolute', opacity: 0, width: 0, height: 0 },
@@ -151,16 +150,20 @@ const createStyles = (colors: Palette, isDark: boolean) => {
       borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.tint,
+      backgroundColor: colors.secondary,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.detail,
       alignSelf: 'stretch',
     },
     primaryBtnDisabled: { opacity: 0.6 },
-    primaryBtnText: { color: primaryTextColor, fontWeight: '600', fontSize: 16 },
+    primaryBtnText: { color: colors.background, fontWeight: '700', fontSize: 16 },
     secondaryBtn: {
       paddingVertical: 10,
       paddingHorizontal: 16,
       borderRadius: 10,
       backgroundColor: secondaryBackground,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.detail,
     },
     secondaryBtnDisabled: { opacity: 0.6 },
     secondaryBtnText: { color: colors.tint, fontWeight: '600', textAlign: 'center' },

@@ -130,7 +130,7 @@ export function AudioBar({
               maximumValue={duration}
               value={position}
               minimumTrackTintColor={accent}
-              maximumTrackTintColor={palette.tabIconDefault}
+              maximumTrackTintColor={palette.border ?? palette.tabIconDefault}
               thumbTintColor={accent}
               onSlidingComplete={onSeek}
               disabled={seeking}
@@ -209,7 +209,7 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.tabIconDefault,
+      borderColor: colors.detail,
       backgroundColor: isDark ? colors.bookCard : colors.background,
     },
     playIcon: { fontSize: 18, color: colors.text },
@@ -239,8 +239,8 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       paddingVertical: 6,
       borderRadius: 8,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.tint,
-      backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(47,149,220,0.12)',
+      borderColor: colors.detail,
+      backgroundColor: colors.bookCard,
     },
     rateSelectorText: {
       fontSize: 12,
@@ -254,7 +254,7 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       bottom: 0,
       borderRadius: 10,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.tabIconDefault,
+      borderColor: colors.border ?? colors.detail,
       backgroundColor: colors.bookCard,
       paddingVertical: 6,
       paddingHorizontal: 8,
@@ -270,10 +270,10 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       paddingVertical: 6,
       borderRadius: 8,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.tabIconDefault,
-      backgroundColor: isDark ? colors.bookCard : colors.background,
+      borderColor: colors.border ?? colors.detail,
+      backgroundColor: colors.secondary,
     },
-    smallBtnText: { fontSize: 12, fontWeight: '600', color: colors.text },
+    smallBtnText: { fontSize: 12, fontWeight: '600', color: colors.background },
     rateOverlay: {
       backgroundColor: 'transparent',
     },
@@ -287,16 +287,16 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       paddingVertical: 10,
       borderRadius: 10,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.tabIconDefault,
+      borderColor: colors.border ?? colors.detail,
       alignItems: 'center',
       minWidth: 72,
       minHeight: 36,
       justifyContent: 'center',
-      backgroundColor: isDark ? colors.bookCard : colors.background,
+      backgroundColor: colors.bookCard,
     },
     rateOptionSelected: {
-      backgroundColor: colors.tint,
-      borderColor: colors.tint,
+      backgroundColor: colors.secondary,
+      borderColor: colors.detail,
     },
     rateOptionText: {
       fontSize: 14,
@@ -304,6 +304,6 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       color: colors.text,
     },
     rateOptionTextSelected: {
-      color: isDark ? '#000' : '#fff',
+      color: colors.background,
     },
   });

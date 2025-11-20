@@ -33,16 +33,16 @@ type Palette = typeof Colors.light;
 const createStyles = (colors: Palette, isDark: boolean) =>
   StyleSheet.create({
     wrapper: { width: '100%', gap: 6 },
-    label: { fontSize: 13, fontWeight: '600', color: colors.text },
+    label: { fontSize: 13, fontWeight: '600', color: colors.tint },
     input: {
       borderWidth: 1,
-      borderColor: colors.tabIconDefault,
+      borderColor: colors.detail,
       borderRadius: 10,
       paddingHorizontal: 12,
       paddingVertical: 12,
       fontSize: 15,
       color: colors.text,
-      backgroundColor: isDark ? colors.bookCard : colors.background,
+      backgroundColor: colors.bookCard,
     },
     inputError: { borderColor: '#ef4444' },
     error: { color: '#ef4444', fontSize: 12 },

@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
+import { useAuth } from '@/auth/AuthContext';
 import { BASE_URL } from '@/constants/API';
 import { TextField } from '@/components/shared/TextField';
 import { AuthCard } from '@/components/auth/AuthCard';
@@ -14,11 +15,10 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function EmailRegistrationScreen() {
   const router = useRouter();
+  const { authToken, setAuthToken } = useAuth();
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
-  const isDark = scheme === 'dark';
-  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
-  const primaryTextColor = isDark ? '#000' : '#fff';
+  const styles = useMemo(() => createStyles(palette), [palette]);
 
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,9 +38,11 @@ export default function EmailRegistrationScreen() {
     setLoading(true);
     try {
       authLogger.info('Solicitando código de cadastro por email', { email: normalizedEmail });
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (authToken) headers.Authorization = `Bearer ${authToken}`;
       const res = await fetch(`${BASE_URL}/auth/email/request-code`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ email: normalizedEmail }),
       });
       const data = await res.json().catch(() => ({}));
@@ -48,6 +50,7 @@ export default function EmailRegistrationScreen() {
         throw new Error(data?.message || `Falha: ${res.status}`);
       }
 
+      setAuthToken(data.token);
       router.push({
         pathname: '/email-code',
         params: {
@@ -66,7 +69,7 @@ export default function EmailRegistrationScreen() {
     } finally {
       setLoading(false);
     }
-  }, [canSubmit, loading, normalizedEmail, router]);
+  }, [authToken, canSubmit, loading, normalizedEmail, router, setAuthToken]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -92,7 +95,7 @@ export default function EmailRegistrationScreen() {
             disabled={!canSubmit || loading}
           >
             {loading ? (
-              <ActivityIndicator color={primaryTextColor} />
+              <ActivityIndicator color={palette.background} />
             ) : (
               <Text style={styles.primaryBtnText}>Enviar código</Text>
             )}
@@ -109,7 +112,7 @@ export default function EmailRegistrationScreen() {
 
 type Palette = typeof Colors.light;
 
-const createStyles = (colors: Palette, isDark: boolean) =>
+const createStyles = (colors: Palette) =>
   StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
     container: {
@@ -125,14 +128,12 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.tint,
+      backgroundColor: colors.secondary,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.detail,
     },
     primaryBtnDisabled: { opacity: 0.6 },
-    primaryBtnText: {
-      color: isDark ? '#000' : '#fff',
-      fontWeight: '600',
-      fontSize: 16,
-    },
+    primaryBtnText: { color: colors.background, fontWeight: '700', fontSize: 16 },
     secondaryBtn: { alignItems: 'center', paddingVertical: 10 },
     secondaryBtnText: { color: colors.tint, fontWeight: '600' },
   });

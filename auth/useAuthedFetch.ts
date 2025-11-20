@@ -6,8 +6,8 @@ import { authLogger } from '@/utils/logger';
 type FetchJSONOptions = RequestInit & { expect?: 'json' | 'text' | 'void' };
 
 export function useAuthedFetch() {
-  const { session, signOut } = useAuth();
-  const token = session?.token;
+  const { session, signOut, authToken } = useAuth();
+  const token = authToken ?? session?.token ?? null;
 
   const authedFetch = useCallback(
     async (input: RequestInfo | URL, init?: RequestInit) => {

@@ -190,8 +190,7 @@ type Palette = typeof Colors.light;
 
 const createStyles = (colors: Palette, isDark: boolean) => {
   const accent = colors.tint;
-  const primaryTextColor = isDark ? '#000' : '#fff';
-  const languageBackground = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(47,149,220,0.12)';
+  const languageBackground = colors.bookCard;
 
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
@@ -205,12 +204,12 @@ const createStyles = (colors: Palette, isDark: boolean) => {
       gap: 18,
       backgroundColor: colors.bookCard,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.tabIconDefault,
+      borderColor: colors.detail,
     },
     title: {
       fontSize: 24,
       fontWeight: '800',
-      color: colors.text,
+      color: colors.detail,
     },
     infoGroup: {
       gap: 4,
@@ -220,7 +219,7 @@ const createStyles = (colors: Palette, isDark: boolean) => {
       textTransform: 'uppercase',
       opacity: 0.6,
       letterSpacing: 0.6,
-      color: colors.text,
+      color: colors.tint,
     },
     infoValue: {
       fontSize: 16,
@@ -236,7 +235,7 @@ const createStyles = (colors: Palette, isDark: boolean) => {
       paddingVertical: 10,
       borderRadius: 10,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: accent,
+      borderColor: colors.detail,
       backgroundColor: languageBackground,
       alignItems: 'center',
       justifyContent: 'center',
@@ -263,7 +262,7 @@ const createStyles = (colors: Palette, isDark: boolean) => {
       paddingVertical: 8,
       paddingHorizontal: 12,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.tabIconDefault,
+      borderColor: colors.detail,
       backgroundColor: colors.background,
       shadowColor: '#000',
       shadowOpacity: 0.15,
@@ -278,44 +277,36 @@ const createStyles = (colors: Palette, isDark: boolean) => {
       paddingHorizontal: 12,
       borderRadius: 10,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.tabIconDefault,
+      borderColor: colors.detail,
     },
     popoverItemSelected: {
-      backgroundColor: accent,
-      borderColor: accent,
+      backgroundColor: colors.secondary,
+      borderColor: colors.detail,
     },
     popoverItemText: {
       fontSize: 14,
       fontWeight: '600',
       color: colors.text,
     },
-    popoverItemTextSelected: {
-      color: primaryTextColor,
-    },
+    popoverItemTextSelected: { color: colors.background },
     primaryButton: {
       marginTop: 6,
       paddingVertical: 14,
       borderRadius: 12,
-      backgroundColor: accent,
+      backgroundColor: colors.secondary,
       alignItems: 'center',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.detail,
     },
-    primaryButtonText: {
-      color: primaryTextColor,
-      fontWeight: '700',
-      fontSize: 16,
-    },
+    primaryButtonText: { color: colors.background, fontWeight: '700', fontSize: 16 },
     signOutButton: {
       paddingVertical: 12,
       borderRadius: 12,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: accent,
+      borderColor: colors.detail,
       alignItems: 'center',
     },
-    signOutText: {
-      fontSize: 15,
-      fontWeight: '600',
-      color: accent,
-    },
+    signOutText: { fontSize: 15, fontWeight: '600', color: colors.tint },
     deleteButton: {
       paddingVertical: 12,
       borderRadius: 12,

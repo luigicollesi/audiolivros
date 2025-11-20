@@ -16,11 +16,14 @@ import { useSafeInsets } from '@/hooks/useSafeInsets';
 import { useAuth } from '@/auth/AuthContext';
 import { useTranslation } from '@/i18n/LanguageContext';
 
+const GRID_CARD_HEIGHT = 320;
+
 export type BookItem = {
   title: string;
   author: string;
   year: number;
   cover_url: string;
+  listeningProgressPercent?: number | null;
 };
 
 export type BooksResponse = {
@@ -31,7 +34,7 @@ export type BooksResponse = {
 type GridCardsProps = {
   books: BookItem[];
   baseUrl?: string;
-  onPressBook?: (book: BookItem, index: number) => void; // <- usaremos no onPress
+  onPressBook?: (book: BookItem, index: number) => void;
   prefetchCovers?: boolean;
 };
 
@@ -62,12 +65,14 @@ function GridCardsBase({ books, baseUrl = BASE_URL, onPressBook, prefetchCovers 
 
   const renderItem = useCallback(
     ({ item, index }: ListRenderItemInfo<BookItem>) => (
-      <BookCard
-        book={item}
-        baseUrl={baseUrl}
-        headers={authHeaders}
-        onPress={() => onPressBook?.(item, index)}
-      />
+      <RNView style={styles.cardWrapper}>
+        <BookCard
+          book={item}
+          baseUrl={baseUrl}
+          headers={authHeaders}
+          onPress={() => onPressBook?.(item, index)}
+        />
+      </RNView>
     ),
     [baseUrl, onPressBook, authHeaders]
   );
@@ -90,7 +95,6 @@ function GridCardsBase({ books, baseUrl = BASE_URL, onPressBook, prefetchCovers 
       initialNumToRender={10}
       maxToRenderPerBatch={10}
       windowSize={7}
-      // fundo atrás dos cards (opcional)
       style={{ backgroundColor: theme.background }}
     />
   );
@@ -124,10 +128,21 @@ function BookCardBase({ book, baseUrl = BASE_URL, headers, onPress }: BookCardPr
 
   const [imgError, setImgError] = useState(false);
   const [imgLoading, setImgLoading] = useState(true);
+  const progressPercent =
+    typeof book.listeningProgressPercent === 'number'
+      ? Math.max(0, Math.min(100, Math.round(book.listeningProgressPercent)))
+      : null;
+  const showProgress = progressPercent !== null && progressPercent > 0 && progressPercent < 100;
 
   return (
     <Pressable
-      style={[styles.card, { backgroundColor: theme.bookCard }]} // <- bookCard atrás do card
+      style={[
+        styles.card,
+        {
+          backgroundColor: theme.bookCard,
+          borderColor: theme.detail ?? theme.border,
+        },
+      ]}
       android_ripple={{ color: '#ddd' }}
       onPress={onPress}
       hitSlop={8}
@@ -150,12 +165,21 @@ function BookCardBase({ book, baseUrl = BASE_URL, headers, onPress }: BookCardPr
         {imgLoading && !imgError && <RNView style={styles.coverOverlay} />}
       </RNView>
 
-      {/* fundo do bloco de infos também com bookCard */}
       <View style={[styles.cardInfo, { backgroundColor: theme.bookCard }]}>
-        <Text style={styles.cardTitle} numberOfLines={2}>{book.title}</Text>
-        <Text style={styles.cardAuthor} numberOfLines={1}>{book.author}</Text>
-        <Text style={styles.cardYear}>{book.year}</Text>
+        <Text style={[styles.cardTitle, { color: theme.text }]} numberOfLines={2}>{book.title}</Text>
+        <Text style={[styles.cardAuthor, { color: theme.text }]} numberOfLines={1}>{book.author}</Text>
+        <Text style={[styles.cardYear, { color: theme.text }]}>{book.year}</Text>
       </View>
+      {showProgress && (
+        <RNView style={[styles.cardProgressTrack, { backgroundColor: 'rgba(0,0,0,0.08)' }]}>
+          <RNView
+            style={[
+              styles.cardProgressBar,
+              { width: `${progressPercent}%`, backgroundColor: theme.detail },
+            ]}
+          />
+        </RNView>
+      )}
     </Pressable>
   );
 }
@@ -173,16 +197,17 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     justifyContent: 'space-between',
   },
+  cardWrapper: {
+    flexBasis: '48%',
+    maxWidth: '48%',
+    marginHorizontal: 4,
+    marginBottom: 10,
+  },
   card: {
-    flex: 1,
-    borderRadius: 14,
+    borderRadius: 12,
     overflow: 'hidden',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    minHeight: 280,
+    minHeight: GRID_CARD_HEIGHT,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   cover: {
     width: '100%',
@@ -206,12 +231,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     opacity: 0.7,
   },
+  cardProgressTrack: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 4,
+    backgroundColor: 'rgba(0,0,0,0.08)',
+  },
+  cardProgressBar: {
+    height: 4,
+    borderTopRightRadius: 4,
+    borderBottomRightRadius: 4,
+  },
   cardInfo: {
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 4,
   },
-  cardTitle: { fontSize: 15, fontWeight: '700' },
+  cardTitle: { fontSize: 15, fontWeight: '700', lineHeight: 20 },
   cardAuthor: { fontSize: 13, opacity: 0.8 },
   cardYear: { fontSize: 12, opacity: 0.6 },
 });

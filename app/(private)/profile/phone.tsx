@@ -53,9 +53,8 @@ export default function PhoneUpdateScreen() {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const isDark = scheme === 'dark';
-  const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
+  const styles = useMemo(() => createStyles(palette), [palette]);
   const placeholderColor = isDark ? '#9ca3af' : '#6b7280';
-  const primaryTextColor = isDark ? '#000' : '#fff';
   const { session, refreshSession } = useAuth();
   const { authedFetch } = useAuthedFetch();
 
@@ -232,7 +231,7 @@ export default function PhoneUpdateScreen() {
                   disabled={loading || cooldown > 0}
                 >
                   {loading ? (
-                    <ActivityIndicator color={primaryTextColor} />
+                    <ActivityIndicator color={palette.background} />
                   ) : (
                     <Text style={styles.primaryButtonText}>
                       {cooldown > 0 ? `Reenviar em ${cooldown}s` : 'Enviar código'}
@@ -286,7 +285,7 @@ export default function PhoneUpdateScreen() {
 
 type Palette = typeof Colors.light;
 
-const createStyles = (colors: Palette, isDark: boolean) =>
+const createStyles = (colors: Palette) =>
   StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
     flex: { flex: 1 },
@@ -303,13 +302,13 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       gap: 16,
       backgroundColor: colors.bookCard,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.tabIconDefault,
+      borderColor: colors.detail,
     },
     title: {
       fontSize: 22,
       fontWeight: '800',
       textAlign: 'center',
-      color: colors.text,
+      color: colors.tint,
     },
     description: {
       fontSize: 14,
@@ -327,21 +326,23 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       paddingVertical: 14,
       borderRadius: 12,
       backgroundColor: colors.bookCard,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.detail,
     },
     countryCodeText: {
       fontSize: 16,
       fontWeight: '600',
-      color: colors.text,
+      color: colors.tint,
     },
     textInput: {
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.tabIconDefault,
+      borderColor: colors.detail,
       borderRadius: 12,
       paddingHorizontal: 12,
       paddingVertical: 14,
       fontSize: 16,
       color: colors.text,
-      backgroundColor: isDark ? colors.bookCard : colors.background,
+      backgroundColor: colors.bookCard,
     },
     dddInput: {
       width: 70,
@@ -362,12 +363,14 @@ const createStyles = (colors: Palette, isDark: boolean) =>
     },
     primaryButton: {
       borderRadius: 12,
-      backgroundColor: colors.tint,
+      backgroundColor: colors.secondary,
       paddingVertical: 14,
       alignItems: 'center',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.detail,
     },
     primaryButtonText: {
-      color: isDark ? '#000' : '#fff',
+      color: colors.background,
       fontWeight: '700',
       fontSize: 16,
     },

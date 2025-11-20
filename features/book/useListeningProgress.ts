@@ -580,6 +580,15 @@ export function useListeningProgress({
         return;
       }
 
+      if (!args.isPlaying && !args.completed) {
+        audioLogger.debug('❌ reportPlayback BLOQUEADO - player não está em execução', {
+          isPlaying: args.isPlaying,
+          force: args.force,
+          completed: args.completed,
+        });
+        return;
+      }
+
       // Debug log for reportPlayback calls
       const progressPercent = args.duration > 0 ? (args.position / args.duration) * 100 : 0;
       audioLogger.info('✅ reportPlayback EXECUTANDO', {
@@ -646,14 +655,6 @@ export function useListeningProgress({
       const finalPosition = sanitizeSeconds(
         opts?.position ?? lastSentPositionRef.current ?? 0,
       );
-      if (opts?.duration && !Number.isNaN(opts.duration)) {
-        reportPlayback({
-          position: finalPosition,
-          duration: sanitizeSeconds(opts.duration),
-          isPlaying: false,
-          force: opts.force ?? true,
-        });
-      }
 
       try {
         const res = await authedFetch(`${BASE_URL}/listening-progress/end-session`, {
@@ -686,7 +687,7 @@ export function useListeningProgress({
         });
       }
     },
-    [audioFileName, authedFetch, bookId, reportPlayback],
+    [audioFileName, authedFetch, bookId],
   );
 
   const ready =
