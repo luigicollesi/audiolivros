@@ -9,6 +9,7 @@ import { CodeVerificationView } from '@/components/auth/CodeVerificationView';
 import { authLogger } from '@/utils/logger';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
+import { useTranslation } from '@/i18n/LanguageContext';
 
 const CODE_LENGTH = 6;
 const RESEND_COOLDOWN_SECONDS = 45;
@@ -20,6 +21,7 @@ export default function ForgotCodeScreen() {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const { t } = useTranslation();
 
   const [pendingToken, setPendingToken] = useState<string | null>(() =>
     typeof params.pendingToken === 'string' ? params.pendingToken : null
@@ -117,9 +119,13 @@ export default function ForgotCodeScreen() {
     }
   }, [email, resendCooldown, resendLoading, router, authToken, setAuthToken]);
 
-  const subtitle = useMemo(() => (
-    email ? `Digite o código enviado para\n${email}` : 'Digite o código enviado ao seu email.'
-  ), [email]);
+  const subtitle = useMemo(
+    () =>
+      email
+        ? t('auth.forgot.codeSubtitle', { email })
+        : t('auth.verifyEmail.subtitleGeneric'),
+    [email, t],
+  );
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -127,18 +133,22 @@ export default function ForgotCodeScreen() {
         <CodeVerificationView
           code={code}
           setCode={(value) => {
-            setCode(value);
-            if (error) setError(null);
-          }}
-          title="Verifique seu email"
+          setCode(value);
+          if (error) setError(null);
+        }}
+          title={t('auth.forgot.codeTitle')}
           subtitle={subtitle}
           loading={loading}
           error={error}
           codeLength={CODE_LENGTH}
           onSubmit={submit}
-          submitLabel="Confirmar"
+          submitLabel={t('auth.common.confirm')}
           onBack={() => router.back()}
-          secondActionLabel={resendCooldown > 0 ? `Reenviar código em ${resendCooldown}s` : 'Reenviar código'}
+          secondActionLabel={
+            resendCooldown > 0
+              ? t('auth.common.resendIn', { seconds: resendCooldown })
+              : t('auth.common.resendCode')
+          }
           onSecondAction={resendCode}
           secondActionDisabled={resendCooldown > 0 || resendLoading}
         />

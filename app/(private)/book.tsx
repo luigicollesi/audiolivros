@@ -1,14 +1,15 @@
 // src/app/book.tsx
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, useColorScheme } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, useColorScheme, Animated } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '@/auth/AuthContext';
 import { useAuthedFetch } from '@/auth/useAuthedFetch';
 import { Text, View } from '@/components/shared/Themed';
 import { BASE_URL } from '@/constants/API';
 import Colors from '@/constants/Colors';
-import { GENRES } from '@/constants/Genres';
+import { GENRES, translateGenreLabel } from '@/constants/Genres';
 import { useOptimizedFavorites } from '@/hooks/useOptimizedFavorites';
 import { useSafeInsets } from '@/hooks/useSafeInsets';
 import { useSmartRefresh } from '@/hooks/useSmartRefresh';
@@ -86,6 +87,12 @@ export default function BookScreen() {
     markEngaged,
   } = progressSync;
   const [favorite, setFavorite] = useState<boolean>(false);
+  const [reviewRating, setReviewRating] = useState<number | null>(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const contentOpacity = useRef(new Animated.Value(0)).current;
+  const detailsAnim = useRef(new Animated.Value(0)).current;
+  const uiTransition = useRef(new Animated.Value(0)).current;
   const audioPath = useMemo(
     () => (progressReady ? summary?.audio_url ?? null : null),
     [progressReady, summary?.audio_url],
@@ -146,24 +153,28 @@ export default function BookScreen() {
             genre.name.toLowerCase() === key || genre.slug.toLowerCase() === key,
         );
         return {
-          label,
+          label: translateGenreLabel(
+            { id: match?.id ?? null, slug: match?.slug ?? label, name: label },
+            lang as 'pt-BR' | 'en-US',
+          ),
           genreId: match?.id ?? null,
+          slug: match?.slug ?? label,
         };
       })
       .filter(
-        (item): item is { label: string; genreId: number | null } => !!item,
+        (item): item is { label: string; genreId: number | null; slug: string } => !!item,
       );
-  }, [summary?.genres]);
+  }, [summary?.genres, lang]);
 
   const handleGenrePress = useCallback(
-    (genre: { label: string; genreId: number | null }) => {
+    (genre: { label: string; genreId: number | null; slug: string }) => {
       const genreIdParam = genre.genreId ? String(genre.genreId) : undefined;
       router.push({
-        pathname: '/(private)/index',
+        pathname: '/(private)/(home)',
         params: {
-          initialGenreName: genre.label,
+          initialGenreName: genre.slug,
           initialGenreId: genreIdParam,
-          genreName: genre.label,
+          genreName: genre.slug,
           genreId: genreIdParam,
         },
       });
@@ -180,6 +191,33 @@ export default function BookScreen() {
   }, [summary]);
 
   useEffect(() => {
+    uiTransition.setValue(0);
+    Animated.timing(uiTransition, {
+      toValue: 1,
+      duration: 1000,
+      useNativeDriver: false,
+    }).start();
+    // run only once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (loading) {
+      contentOpacity.setValue(1);
+      detailsAnim.setValue(0);
+      return;
+    }
+    Animated.parallel([
+      Animated.timing(detailsAnim, {
+        toValue: 1,
+        duration: 500,
+        delay: 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [loading, contentOpacity, detailsAnim]);
+
+  useEffect(() => {
     initialSeekAttemptedRef.current = false;
     initialSyncCompletedRef.current = false;
   }, [audioPath, savedPosition]);
@@ -190,6 +228,56 @@ export default function BookScreen() {
     });
     setSummaryExpanded((prev) => !prev);
   }, [summaryExpanded]);
+
+  const loadReview = useCallback(
+    async (bookId: string) => {
+      setReviewLoading(true);
+      try {
+        const res = await fetchJSON<{ rating?: number | null }>(`${BASE_URL}/reviews/${bookId}`);
+        const incoming = typeof res?.rating === 'number' ? res.rating : null;
+        setReviewRating(incoming);
+      } catch {
+        setReviewRating(null);
+      } finally {
+        setReviewLoading(false);
+      }
+    },
+    [fetchJSON],
+  );
+
+  useEffect(() => {
+    if (!summary?.bookId) {
+      setReviewRating(null);
+      return;
+    }
+    void loadReview(summary.bookId);
+  }, [summary?.bookId, loadReview]);
+
+  const handleSelectRating = useCallback(
+    async (value: number) => {
+      if (!summary?.bookId) return;
+      if (reviewSubmitting) return;
+      setReviewSubmitting(true);
+      try {
+        const res = await authedFetch(`${BASE_URL}/reviews`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bookId: summary.bookId, rating: value }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data?.message || 'Não foi possível registrar sua avaliação.');
+        }
+        setReviewRating(value);
+        Alert.alert('Avaliação', 'Sua avaliação foi registrada.');
+      } catch (err: any) {
+        Alert.alert('Avaliação', err?.message ?? 'Não foi possível registrar sua avaliação.');
+      } finally {
+        setReviewSubmitting(false);
+      }
+    },
+    [authedFetch, reviewSubmitting, summary?.bookId],
+  );
 
   const handleToggleFavorite = useCallback(async () => {
     if (!title || !author) return;
@@ -453,8 +541,45 @@ export default function BookScreen() {
     void skipBy(10);
   }, [markEngaged, skipBy]);
 
+  const detailsTranslateY = useMemo(
+    () =>
+      detailsAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [-24, 0],
+      }),
+    [detailsAnim],
+  );
+
+  const fauxTabOpacity = useMemo(
+    () =>
+      uiTransition.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 0],
+      }),
+    [uiTransition],
+  );
+
+  const fauxTabScale = useMemo(
+    () =>
+      uiTransition.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 0.9],
+      }),
+    [uiTransition],
+  );
+
+  const audioOpacity = uiTransition;
+  const audioScale = useMemo(
+    () =>
+      uiTransition.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.92, 1],
+      }),
+    [uiTransition],
+  );
+
   return (
-    <>
+    <Animated.View style={{ flex: 1, opacity: contentOpacity }}>
       <Pressable
         style={[styles.backButton, { top: insets.top + 12 }]}
         onPress={() => router.back()}
@@ -462,60 +587,119 @@ export default function BookScreen() {
       >
         <Text style={[styles.backButtonText, { color: theme.tint }]}>←</Text>
       </Pressable>
-      <ScrollView
-        contentContainerStyle={scrollContentStyle}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Image source={coverSource} style={styles.cover} resizeMode="cover" />
+      <ScrollView contentContainerStyle={scrollContentStyle} keyboardShouldPersistTaps="handled">
+        <View style={styles.coverWrapper}>
+          <Image source={coverSource} style={styles.cover} resizeMode="cover" />
+        </View>
 
-        <BookInfo
-          title={title}
-          author={author}
-          year={year}
-          language={lang}
-          backgroundColor={theme.bookCard}
-          favorite={favorite}
-          onToggleFavorite={handleToggleFavorite}
-          disabling={isPending(title, author, lang) || loading || !summary}
-        />
+        <Animated.View style={{ opacity: detailsAnim, transform: [{ translateY: detailsTranslateY }] }}>
+          <BookInfo
+            title={title}
+            author={author}
+            year={year}
+            language={lang}
+            backgroundColor={theme.bookCard}
+            favorite={favorite}
+            onToggleFavorite={handleToggleFavorite}
+            disabling={isPending(title, author, lang) || loading || !summary}
+          />
 
-        {genreChips.length > 0 && (
-          <View
-            style={[
-              styles.genreSection,
-              {
-                backgroundColor: theme.bookCard,
-                borderColor: theme.detail ?? '#e5e5e5',
-              },
-            ]}
-          >
-            <Text style={[styles.genreLabel, { color: theme.tint }]}>
-              {t('book.genres') ?? 'Gêneros'}
-            </Text>
-            <View style={styles.genreList}>
-              {genreChips.map((genre) => (
-                <Pressable
-                  key={`${genre.label}-${genre.genreId ?? 'unknown'}`}
-                  onPress={() => handleGenrePress(genre)}
-                  style={[
-                    styles.genreChip,
-                    {
-                      borderColor: theme.detail ?? '#d4d4d4',
-                      backgroundColor: scheme === 'dark'
-                        ? 'rgba(255,255,255,0.05)'
-                        : '#f4f4f5',
-                    },
-                  ]}
-                  hitSlop={8}
-                >
-                  <Text style={[styles.genreChipText, { color: theme.tint }]}>
-                    {genre.label}
-                  </Text>
-                </Pressable>
-              ))}
+          {summary?.bookId ? (
+            <View
+              style={[
+                styles.ratingCard,
+                {
+                  backgroundColor: theme.bookCard,
+                  borderColor: theme.detail ?? '#e5e5e5',
+                },
+              ]}
+            >
+              <Text style={[styles.ratingTitle, { color: theme.tint }]}>
+                {t('book.yourRating') ?? 'Sua avaliação'}
+              </Text>
+              <View style={styles.ratingRow}>
+                {[1, 2, 3, 4, 5].map((value) => {
+                  const filled = (reviewRating ?? 0) >= value;
+                  return (
+                    <Pressable
+                      key={value}
+                      style={[
+                        styles.ratingStar,
+                        {
+                          borderColor: theme.detail ?? '#d4d4d4',
+                          backgroundColor: filled ? theme.tint : 'transparent',
+                          opacity: reviewSubmitting || reviewLoading ? 0.6 : 1,
+                        },
+                      ]}
+                      disabled={reviewSubmitting || reviewLoading}
+                      hitSlop={8}
+                      onPress={() => handleSelectRating(value)}
+                    >
+                      <Text
+                        style={[
+                          styles.ratingStarText,
+                          { color: filled ? theme.background : theme.tint },
+                        ]}
+                      >
+                        ★
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+                {(reviewLoading || reviewSubmitting) && (
+                  <ActivityIndicator
+                    style={styles.ratingSpinner}
+                    size="small"
+                    color={theme.tint}
+                  />
+                )}
+              </View>
+              {reviewRating != null && (
+                <Text style={[styles.ratingHint, { color: theme.tint }]}>
+                  {t('book.yourRatingValue', { rating: reviewRating }) ??
+                    `Avaliação: ${reviewRating}/5`}
+                </Text>
+              )}
             </View>
-          </View>
-        )}
+          ) : null}
+
+          {genreChips.length > 0 && (
+            <View
+              style={[
+                styles.genreSection,
+                {
+                  backgroundColor: theme.bookCard,
+                  borderColor: theme.detail ?? '#e5e5e5',
+                },
+              ]}
+            >
+              <Text style={[styles.genreLabel, { color: theme.tint }]}>
+                {t('book.genres') ?? 'Gêneros'}
+              </Text>
+              <View style={styles.genreList}>
+                {genreChips.map((genre) => (
+                  <Pressable
+                    key={`${genre.label}-${genre.genreId ?? 'unknown'}`}
+                    onPress={() => handleGenrePress(genre)}
+                    style={[
+                      styles.genreChip,
+                      {
+                        borderColor: theme.detail ?? '#d4d4d4',
+                        backgroundColor: scheme === 'dark'
+                          ? 'rgba(255,255,255,0.05)'
+                          : '#f4f4f5',
+                      },
+                    ]}
+                    hitSlop={8}
+                  >
+                    <Text style={[styles.genreChipText, { color: theme.tint }]}>
+                      {genre.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
 
         <BookSummarySection
           loading={loading}
@@ -526,6 +710,7 @@ export default function BookScreen() {
           expanded={summaryExpanded}
           onToggleExpanded={toggleSummaryExpanded}
         />
+        </Animated.View>
       </ScrollView>
 
       {summaryExpanded && summary?.summary && (
@@ -561,27 +746,65 @@ export default function BookScreen() {
         </View>
       )}
 
-      <AudioBar
-        bottomInset={insets.bottom}
-        backgroundColor={theme.bookCard}
-        borderColor={scheme === 'dark' ? '#333' : theme.detail ?? theme.border}
-        audioReady={audioReady}
-        audioLoading={audioLoading}
-        audioError={audioErr}
-        isPlaying={isPlaying}
-        onTogglePlay={handleTogglePlay}
-        onSeek={handleSeek}
-        onSkipBackward={handleSkipBackward}
-        onSkipForward={handleSkipForward}
-        seeking={seeking}
-        position={position}
-        duration={duration}
-        formatTime={formatTime}
-        playbackRate={playbackRate}
-        availableRates={availableRates}
-        onSelectRate={setPlaybackRate}
-      />
-    </>
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.fauxTabBar,
+          {
+            opacity: fauxTabOpacity,
+            transform: [{ scale: fauxTabScale }],
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.fauxBarInner,
+            {
+              backgroundColor: theme.background,
+              borderTopColor: theme.detail ?? theme.border,
+            },
+          ]}
+        >
+          <View style={styles.fauxTabItem}>
+            <Ionicons name="library-outline" size={22} color={theme.tint} />
+          </View>
+          <View style={[styles.fauxTabItem, styles.fauxTabCenter]}>
+            <Ionicons name="search-outline" size={22} color={theme.tint} />
+          </View>
+          <View style={styles.fauxTabItem}>
+            <Ionicons name="person-outline" size={22} color={theme.tint} />
+          </View>
+        </View>
+      </Animated.View>
+
+      <Animated.View
+        style={{
+          opacity: audioOpacity,
+          transform: [{ scale: audioScale }],
+        }}
+      >
+        <AudioBar
+          bottomInset={insets.bottom}
+          backgroundColor={theme.bookCard}
+          borderColor={scheme === 'dark' ? '#333' : theme.detail ?? theme.border}
+          audioReady={audioReady}
+          audioLoading={audioLoading}
+          audioError={audioErr}
+          isPlaying={isPlaying}
+          onTogglePlay={handleTogglePlay}
+          onSeek={handleSeek}
+          onSkipBackward={handleSkipBackward}
+          onSkipForward={handleSkipForward}
+          seeking={seeking}
+          position={position}
+          duration={duration}
+          formatTime={formatTime}
+          playbackRate={playbackRate}
+          availableRates={availableRates}
+          onSelectRate={setPlaybackRate}
+        />
+      </Animated.View>
+    </Animated.View>
   );
 }
 
@@ -638,9 +861,92 @@ const styles = StyleSheet.create({
   },
   cover: {
     width: '100%',
+    maxWidth: 420,
     aspectRatio: 2 / 3,
-    borderRadius: 14,
+    borderRadius: 18,
+  },
+  ratingCard: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 16,
+    gap: 8,
+  },
+  ratingTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  ratingStar: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ratingStarText: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  ratingSpinner: {
+    marginLeft: 8,
+  },
+  ratingHint: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'flex-start',
+    alignItems: 'stretch',
+    gap: 8,
+    paddingHorizontal: 16,
+  },
+  coverWrapper: {
+    borderWidth: 2,
+    borderColor: '#d4af37',
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 420,
+    paddingEnd: 0,
+    marginBottom: 16,
+  },
+  fauxTabBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 0,
+    justifyContent: 'center',
+  },
+  fauxBarInner: {
+    height: 74,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingLeft: 54,
+    paddingRight: 54,
+  },
+  fauxTabItem: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fauxTabCenter: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'transparent',
   },
   genreSection: {
     padding: 12,

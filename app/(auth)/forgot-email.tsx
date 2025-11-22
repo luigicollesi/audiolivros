@@ -10,6 +10,7 @@ import { AuthCard } from '@/components/auth/AuthCard';
 import { authLogger } from '@/utils/logger';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
+import { useTranslation } from '@/i18n/LanguageContext';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -20,6 +21,7 @@ export default function ForgotEmailScreen() {
   const palette = Colors[scheme];
   const isDark = scheme === 'dark';
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const { t } = useTranslation();
 
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -73,11 +75,11 @@ export default function ForgotEmailScreen() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
         <AuthCard
-          title="Redefinir senha"
-          subtitle="Informe seu email para receber um código de verificação."
+          title={t('auth.forgot.title')}
+          subtitle={t('auth.forgot.subtitle')}
         >
           <TextField
-            placeholder="email@exemplo.com"
+            placeholder={t('auth.common.emailPlaceholder')}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
@@ -94,12 +96,12 @@ export default function ForgotEmailScreen() {
             {loading ? (
               <ActivityIndicator color={palette.background} />
             ) : (
-              <Text style={styles.primaryBtnText}>Enviar código</Text>
+              <Text style={styles.primaryBtnText}>{t('auth.common.sendCode')}</Text>
             )}
           </Pressable>
 
           <Pressable style={styles.linkBtn} onPress={() => router.back()}>
-            <Text style={styles.linkText}>Voltar</Text>
+            <Text style={styles.linkText}>{t('auth.common.back')}</Text>
           </Pressable>
         </AuthCard>
       </View>

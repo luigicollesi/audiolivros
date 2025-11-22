@@ -11,6 +11,7 @@ import { AuthCard } from '@/components/auth/AuthCard';
 import { authLogger } from '@/utils/logger';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
+import { useTranslation } from '@/i18n/LanguageContext';
 
 const MIN_PASSWORD_LEN = 8;
 const createMachineCode = () => `device-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -24,6 +25,7 @@ export default function ForgotPasswordScreen() {
   const palette = Colors[scheme];
   const isDark = scheme === 'dark';
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const { t } = useTranslation();
 
   const [resetToken] = useState<string | null>(() =>
     typeof params.resetToken === 'string' ? params.resetToken : null
@@ -35,6 +37,8 @@ export default function ForgotPasswordScreen() {
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     if (!resetToken) {
@@ -112,29 +116,49 @@ export default function ForgotPasswordScreen() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
         <AuthCard
-          title="Defina sua nova senha"
-          subtitle={email ? `Email: ${email}` : undefined}
+          title={t('auth.forgot.passwordTitle')}
+          subtitle={email ? t('auth.reset.subtitleEmail', { email }) : undefined}
         >
           <TextField
-            placeholder="Nova senha"
-            secureTextEntry
+            placeholder={t('auth.password.placeholder')}
+            secureTextEntry={!showPassword}
             value={password}
             onChangeText={(value) => {
               setPassword(value);
               if (error) setError(null);
             }}
+            rightAccessory={
+              <Pressable onPress={() => setShowPassword((prev) => !prev)}>
+                <Text style={{ color: palette.tint, fontWeight: '600' }}>
+                  {showPassword ? t('auth.password.hide') : t('auth.password.show')}
+                </Text>
+              </Pressable>
+            }
           />
           <TextField
-            placeholder="Confirme a nova senha"
-            secureTextEntry
+            placeholder={t('auth.password.confirm')}
+            secureTextEntry={!showConfirm}
             value={confirm}
             onChangeText={(value) => {
               setConfirm(value);
               if (error) setError(null);
             }}
-            error={!passwordsMatch && confirm.length > 0 ? 'As senhas precisam ser iguais.' : undefined}
+            error={
+              !passwordsMatch && confirm.length > 0
+                ? t('auth.password.mismatch')
+                : undefined
+            }
+            rightAccessory={
+              <Pressable onPress={() => setShowConfirm((prev) => !prev)}>
+                <Text style={{ color: palette.tint, fontWeight: '600' }}>
+                  {showConfirm ? t('auth.password.hide') : t('auth.password.show')}
+                </Text>
+              </Pressable>
+            }
           />
-          <Text style={styles.hint}>A senha deve ter pelo menos {MIN_PASSWORD_LEN} caracteres.</Text>
+          <Text style={styles.hint}>
+            {t('auth.password.hint', { min: MIN_PASSWORD_LEN })}
+          </Text>
           {error && <Text style={styles.error}>{error}</Text>}
 
           <Pressable
@@ -145,12 +169,14 @@ export default function ForgotPasswordScreen() {
             {loading ? (
               <ActivityIndicator color={palette.background} />
             ) : (
-              <Text style={styles.primaryBtnText}>Salvar e continuar</Text>
+              <Text style={styles.primaryBtnText}>
+                {t('auth.password.saveAndContinue')}
+              </Text>
             )}
           </Pressable>
 
           <Pressable style={styles.linkBtn} onPress={() => router.back()}>
-            <Text style={styles.linkText}>Voltar</Text>
+            <Text style={styles.linkText}>{t('auth.common.back')}</Text>
           </Pressable>
         </AuthCard>
       </View>

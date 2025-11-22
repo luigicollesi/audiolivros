@@ -1,6 +1,6 @@
 import { GenreModal, GenreOption } from '@/components/book/GenreModal';
 import type { BookItem } from '@/components/book/BookGrid';
-import { View } from '@/components/shared/Themed';
+import { Text, View } from '@/components/shared/Themed';
 import { HomeHeader } from '@/components/home/HomeHeader';
 import { HomeShelvesList } from '@/components/home/HomeShelvesList';
 import { HomeFilteredResults } from '@/components/home/HomeFilteredResults';
@@ -13,12 +13,13 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Dimensions, Keyboard, LayoutChangeEvent, StyleSheet, TextInput } from 'react-native';
+import { ActivityIndicator, Animated, Dimensions, Image, Keyboard, LayoutChangeEvent, StyleSheet, TextInput } from 'react-native';
 import type { FlatList } from 'react-native';
 
 import { useAuth } from '@/auth/AuthContext';
 import Colors from '@/constants/Colors';
-import { GENRES } from '@/constants/Genres';
+import { GENRES, translateGenreLabel } from '@/constants/Genres';
+import { BASE_URL } from '@/constants/API';
 import { useSafeInsets } from '@/hooks/useSafeInsets';
 import { useSmartRefresh } from '@/hooks/useSmartRefresh';
 import { booksLogger } from '@/utils/logger';
@@ -114,6 +115,9 @@ export default function HomeScreen() {
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const overlayAnim = useRef(new Animated.Value(0)).current;
+  const [overlayBook, setOverlayBook] = useState<BookItem | null>(null);
+  const overlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!incomingGenre) return;
     setSelectedGenre((prev: GenreOption | null) => {
@@ -160,16 +164,26 @@ export default function HomeScreen() {
     [rowHeights],
   );
 
+  const selectedGenreDisplay = useMemo(() => {
+    if (!selectedGenre) return null;
+    const translatedName = translateGenreLabel(
+      { id: selectedGenre.id, slug: selectedGenre.slug, name: selectedGenre.name },
+      languageId,
+    );
+    return { ...selectedGenre, name: translatedName || selectedGenre.name };
+  }, [selectedGenre, languageId]);
+
   const rowConfigs = useMemo(
     () =>
       buildRowConfigs({
         t,
         searchText,
-        selectedGenre,
+        selectedGenre: selectedGenreDisplay,
         favoriteGenreId,
         randomOrder: genreSequence,
+        languageId,
       }),
-    [t, searchText, selectedGenre?.id, selectedGenre?.name, favoriteGenreId, genreSequence],
+    [t, searchText, selectedGenreDisplay?.id, selectedGenreDisplay?.name, favoriteGenreId, genreSequence, languageId],
   );
 
   const bookQueryParams = useMemo(
@@ -363,6 +377,33 @@ export default function HomeScreen() {
     [showShelves, activeShelves],
   );
 
+  const contentOpacity = useMemo(
+    () =>
+      overlayAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 0],
+      }),
+    [overlayAnim],
+  );
+
+  const overlayScale = useMemo(
+    () =>
+      overlayAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.5, 1],
+      }),
+    [overlayAnim],
+  );
+
+  const overlayTranslateY = useMemo(
+    () =>
+      overlayAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, 0],
+      }),
+    [overlayAnim],
+  );
+
   const loopedRows = useMemo<RowRenderItem[]>(() => {
     if (!showShelves) return [];
     const items: RowRenderItem[] = [];
@@ -464,6 +505,22 @@ export default function HomeScreen() {
     booksLogger.info('Search applied on home timeline', { text: searchText });
   }, [searchText]);
 
+  useEffect(() => {
+    return () => {
+      if (overlayTimerRef.current) {
+        clearTimeout(overlayTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (overlayTimerRef.current) {
+        clearTimeout(overlayTimerRef.current);
+      }
+    };
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       const cleanup = scheduleRefresh();
@@ -507,9 +564,9 @@ export default function HomeScreen() {
   const headerStrings = useMemo<HomeHeaderStrings>(() => {
     const title = searchActive
       ? t('home.heading.search', { text: searchApplied })
-      : selectedGenre
-      ? selectedGenre.name
-      : 'Livros Disponiveis';
+      : selectedGenreDisplay
+      ? selectedGenreDisplay.name
+      : t('home.heading.default');
     return {
       title,
       filterLabel: t('home.filter'),
@@ -518,7 +575,7 @@ export default function HomeScreen() {
       searchSubmitLabel: t('home.searchSubmit'),
       keyboardDismissLabel: t('home.keyboardDismiss'),
     };
-  }, [searchActive, searchApplied, selectedGenre, t]);
+  }, [searchActive, searchApplied, selectedGenreDisplay, t]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -557,18 +614,36 @@ export default function HomeScreen() {
 
   const handlePressBook = useCallback(
     (book: BookItem) => {
-      router.push({
-        pathname: '/book',
-        params: {
-          title: book.title,
-          author: book.author,
-          year: String(book.year),
-          cover_url: book.cover_url,
-          language: languageId,
-        },
+      if (overlayBook) return;
+      setOverlayBook(book);
+      overlayAnim.setValue(0);
+      if (overlayTimerRef.current) clearTimeout(overlayTimerRef.current);
+
+      Animated.timing(overlayAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (!finished) return;
+        router.push({
+          pathname: '/(private)/book',
+          params: {
+            title: book.title,
+            author: book.author,
+            year: String(book.year),
+            cover_url: book.cover_url,
+            language: languageId,
+          },
+        });
       });
+
+      // Reset overlay after a while to clean up UI
+      overlayTimerRef.current = setTimeout(() => {
+        setOverlayBook(null);
+        overlayAnim.setValue(0);
+      }, 2400);
     },
-    [router, languageId],
+    [router, languageId, overlayBook, overlayAnim],
   );
 
   const onFilteredMomentumEnd = useCallback(
@@ -719,7 +794,45 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: palette.background }]}>
-      {showShelves ? shelvesContent : filteredContent}
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: contentOpacity }]}>
+        {showShelves ? shelvesContent : filteredContent}
+      </Animated.View>
+
+      {overlayBook && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.overlayContainer,
+            {
+              paddingTop: insets.top + 12,
+              paddingHorizontal: 16,
+              backgroundColor: 'transparent',
+            },
+          ]}
+        >
+          <Animated.View
+          style={[
+            styles.overlayCard,
+            {
+              borderColor: '#d4af37',
+              shadowColor: '#000',
+              opacity: overlayAnim,
+              transform: [{ translateY: overlayTranslateY }, { scale: overlayScale }],
+            },
+          ]}
+        >
+            <Image
+              source={{
+                uri: overlayBook.cover_url.startsWith('http')
+                  ? overlayBook.cover_url
+                  : `${BASE_URL}${overlayBook.cover_url.startsWith('/') ? '' : '/'}${overlayBook.cover_url}`,
+              }}
+              style={styles.overlayImage}
+              resizeMode="cover"
+            />
+          </Animated.View>
+        </Animated.View>
+      )}
 
       <GenreModal
         visible={showGenreModal}
@@ -735,7 +848,7 @@ export default function HomeScreen() {
         }}
         onClose={() => setShowGenreModal(false)}
         allowClear
-        title="Selecione um gênero"
+        title={t('genre.title')}
       />
     </View>
   );
@@ -743,4 +856,42 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  overlayContainer: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 24,
+    paddingHorizontal: 16,
+  },
+  overlayCard: {
+    width: '100%',
+    maxWidth: 420,
+    aspectRatio: 2 / 3,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 2,
+    backgroundColor: 'transparent',
+    borderColor: '#d4af37',
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  overlayImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 18,
+  },
+  overlayLoading: {
+    position: 'absolute',
+    bottom: 16,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    gap: 4,
+  },
+  overlayLoadingText: {
+    fontWeight: '600',
+    fontSize: 12,
+  },
 });

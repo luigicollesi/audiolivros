@@ -2,7 +2,8 @@ import { useCallback, useMemo } from 'react';
 import { useAuthedFetch } from '@/auth/useAuthedFetch';
 import { useCachedRequest } from '@/hooks/useRequestCache';
 import { BASE_URL } from '@/constants/API';
-import { GENRES } from '@/constants/Genres';
+import { GENRES, translateGenreLabel } from '@/constants/Genres';
+import type { LanguageCode } from '@/i18n/types';
 import type { BookItem, BooksResponse } from '@/components/book/BookGrid';
 import type { GenreOption } from '@/components/book/GenreModal';
 
@@ -163,8 +164,10 @@ export function buildRowConfigs(params: {
   selectedGenre: GenreOption | null;
   favoriteGenreId: number | null;
   randomOrder: number[];
+  languageId: LanguageCode;
 }): RowConfig[] {
-  const { t, searchText, selectedGenre, favoriteGenreId, randomOrder } = params;
+  const { t, searchText, selectedGenre, favoriteGenreId, randomOrder, languageId } =
+    params;
   const configs: RowConfig[] = [
     {
       id: 'row-library',
@@ -215,7 +218,7 @@ export function buildRowConfigs(params: {
       : `row-random-${recommendedGenreId}-rec`,
     title: favoriteGenreId
       ? t('home.rows.recommended')
-      : t('home.rows.genrePrefix', { name: getGenreName(recommendedGenreId) }),
+      : t('home.rows.genrePrefix', { name: getGenreName(recommendedGenreId, languageId) }),
     request: { kind: 'genre', limit: ROW_LIMIT, genreId: recommendedGenreId },
     emptyLabel: t('home.rows.randomEmpty'),
   });
@@ -226,8 +229,8 @@ export function buildRowConfigs(params: {
       ? `row-selected-${selectedGenreId}`
       : `row-random-${selectedRowGenreId}-slot4`,
     title: selectedGenreId
-      ? t('home.rows.genrePrefix', { name: selectedGenre?.name ?? getGenreName(selectedRowGenreId) })
-      : t('home.rows.genrePrefix', { name: getGenreName(selectedRowGenreId) }),
+      ? t('home.rows.genrePrefix', { name: selectedGenre?.name ?? getGenreName(selectedRowGenreId, languageId) })
+      : t('home.rows.genrePrefix', { name: getGenreName(selectedRowGenreId, languageId) }),
     request: { kind: 'genre', limit: ROW_LIMIT, genreId: selectedRowGenreId },
     emptyLabel: t('home.rows.randomEmpty'),
   });
@@ -236,7 +239,7 @@ export function buildRowConfigs(params: {
     const genreId = pullRandom();
     configs.push({
       id: `row-random-${genreId}-slot${configs.length}`,
-      title: t('home.rows.genrePrefix', { name: getGenreName(genreId) }),
+      title: t('home.rows.genrePrefix', { name: getGenreName(genreId, languageId) }),
       request: { kind: 'genre', limit: ROW_LIMIT, genreId },
       emptyLabel: t('home.rows.randomEmpty'),
     });
@@ -391,6 +394,12 @@ function shuffleArray(values: number[]) {
   }
 }
 
-function getGenreName(genreId: number) {
-  return GENRES.find((genre) => genre.id === genreId)?.name ?? `Gênero ${genreId}`;
+function getGenreName(genreId: number, languageId: LanguageCode) {
+  const base = GENRES.find((genre) => genre.id === genreId);
+  if (!base) return `Gênero ${genreId}`;
+  const translated = translateGenreLabel(
+    { id: base.id, slug: base.slug, name: base.name },
+    languageId,
+  );
+  return translated || base.name;
 }

@@ -39,6 +39,7 @@ type AuthContextType = {
   acknowledgeFavorites: () => void;
   authToken: string | null;
   setAuthToken: (token: string | null) => void;
+  updateSessionUser: (patch: Partial<User>) => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -280,6 +281,19 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     setFavoritesDirty(false);
   }, []);
 
+  const updateSessionUser = useCallback((patch: Partial<User>) => {
+    setSession((prev) => {
+      if (!prev) return prev;
+      const nextUser = { ...prev.user, ...patch };
+      const nextSession: NonNullable<Session> = {
+        ...prev,
+        user: nextUser,
+      };
+      sessionRef.current = nextSession;
+      return nextSession;
+    });
+  }, []);
+
   useEffect(() => {
     clearRefreshTimer();
     if (!AUTO_REFRESH_ENABLED) return;
@@ -343,6 +357,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       acknowledgeFavorites,
       authToken,
       setAuthToken,
+      updateSessionUser,
     }),
     [
       session,
@@ -356,6 +371,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       acknowledgeFavorites,
       authToken,
       setAuthToken,
+      updateSessionUser,
     ]
   );
 

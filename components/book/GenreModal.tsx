@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import Colors from '@/constants/Colors';
 import { Text, View } from '@/components/shared/Themed';
-import { GENRES } from '@/constants/Genres';
+import { GENRES, translateGenreLabel } from '@/constants/Genres';
 import { useTranslation } from '@/i18n/LanguageContext';
 
 export type GenreOption = { id: number; name: string; slug: string };
@@ -33,7 +33,7 @@ function GenreModalBase({
 }: Props) {
   const scheme = useColorScheme() ?? 'light';
   const theme = Colors[scheme];
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -78,7 +78,10 @@ function GenreModalBase({
                     ]}
                     numberOfLines={1}
                   >
-                    {item.name}
+                    {translateGenreLabel(
+                      { id: item.id, slug: item.slug, name: item.name },
+                      language,
+                    )}
                   </Text>
                 </Pressable>
               );

@@ -11,6 +11,7 @@ import { AuthCard } from '@/components/auth/AuthCard';
 import { authLogger } from '@/utils/logger';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
+import { useTranslation } from '@/i18n/LanguageContext';
 
 const MIN_PASSWORD_LEN = 8;
 
@@ -26,12 +27,15 @@ export default function EmailPasswordScreen() {
   const palette = Colors[scheme];
   const isDark = scheme === 'dark';
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const { t } = useTranslation();
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const normalizedRegisterToken = useMemo(
     () => (typeof registerToken === 'string' ? registerToken : null),
@@ -121,11 +125,13 @@ export default function EmailPasswordScreen() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
         <AuthCard
-          title="Defina sua senha"
-          subtitle={normalizedEmail ? `Email: ${normalizedEmail}` : undefined}
+          title={t('auth.password.title')}
+          subtitle={
+            normalizedEmail ? t('auth.reset.subtitleEmail', { email: normalizedEmail }) : undefined
+          }
         >
           <TextField
-            placeholder="Nome (opcional)"
+            placeholder={t('auth.password.optionalName')}
             value={name}
             onChangeText={(value) => {
               setName(value);
@@ -133,28 +139,48 @@ export default function EmailPasswordScreen() {
             }}
           />
           <TextField
-            placeholder="Senha"
-            secureTextEntry
+            placeholder={t('auth.password.placeholder')}
+            secureTextEntry={!showPassword}
             value={password}
             onChangeText={(value) => {
               setPassword(value);
               if (error) setError(null);
             }}
+            rightAccessory={
+              <Pressable onPress={() => setShowPassword((prev) => !prev)}>
+                <Text style={{ color: palette.tint, fontWeight: '600' }}>
+                  {showPassword ? t('auth.password.hide') : t('auth.password.show')}
+                </Text>
+              </Pressable>
+            }
           />
           <TextField
-            placeholder="Confirme a senha"
-            secureTextEntry
+            placeholder={t('auth.password.confirm')}
+            secureTextEntry={!showConfirm}
             value={confirm}
             onChangeText={(value) => {
               setConfirm(value);
               if (error) setError(null);
             }}
-            error={!passwordsMatch && confirm.length > 0 ? 'As senhas precisam ser iguais.' : undefined}
+            error={
+              !passwordsMatch && confirm.length > 0
+                ? t('auth.password.mismatch')
+                : undefined
+            }
+            rightAccessory={
+              <Pressable onPress={() => setShowConfirm((prev) => !prev)}>
+                <Text style={{ color: palette.tint, fontWeight: '600' }}>
+                  {showConfirm ? t('auth.password.hide') : t('auth.password.show')}
+                </Text>
+              </Pressable>
+            }
           />
 
-          <Text style={styles.hint}>A senha deve ter pelo menos {MIN_PASSWORD_LEN} caracteres.</Text>
+          <Text style={styles.hint}>
+            {t('auth.password.hint', { min: MIN_PASSWORD_LEN })}
+          </Text>
           {!passwordsMatch && confirm.length > 0 && (
-            <Text style={styles.error}>As senhas precisam ser iguais.</Text>
+            <Text style={styles.error}>{t('auth.password.mismatch')}</Text>
           )}
           {error && <Text style={styles.error}>{error}</Text>}
 
@@ -166,12 +192,12 @@ export default function EmailPasswordScreen() {
             {loading ? (
               <ActivityIndicator color={palette.background} />
             ) : (
-              <Text style={styles.primaryBtnText}>Continuar</Text>
+              <Text style={styles.primaryBtnText}>{t('auth.password.continue')}</Text>
             )}
           </Pressable>
 
           <Pressable style={styles.secondaryBtn} onPress={() => router.back()}>
-            <Text style={styles.secondaryBtnText}>Voltar</Text>
+            <Text style={styles.secondaryBtnText}>{t('auth.common.back')}</Text>
           </Pressable>
         </AuthCard>
       </View>

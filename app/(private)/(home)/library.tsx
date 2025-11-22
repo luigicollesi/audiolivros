@@ -14,6 +14,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
   FlatList,
   ListRenderItemInfo,
@@ -21,6 +22,7 @@ import {
   RefreshControl,
   StyleSheet,
 } from 'react-native';
+import { BASE_URL } from '@/constants/API';
 
 const PAGE_SIZE = 10;
 
@@ -37,6 +39,32 @@ export default function LibraryScreen() {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const { language: baseLanguage, t } = useTranslation();
+  const [overlayBook, setOverlayBook] = useState<BookItem | null>(null);
+  const overlayAnim = useRef(new Animated.Value(0)).current;
+  const contentOpacity = useMemo(
+    () =>
+      overlayAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 0.15],
+      }),
+    [overlayAnim],
+  );
+  const overlayScale = useMemo(
+    () =>
+      overlayAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.5, 1],
+      }),
+    [overlayAnim],
+  );
+  const overlayTranslateY = useMemo(
+    () =>
+      overlayAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, 0],
+      }),
+    [overlayAnim],
+  );
 
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -236,22 +264,34 @@ export default function LibraryScreen() {
 
   const handlePressBook = useCallback(
     (b: BookItem) => {
+      if (overlayBook) return;
       favoritesLogger.debug('Abrindo detalhe de favorito', {
         title: b.title,
         author: b.author,
       });
-      router.push({
-        pathname: '/book',
-        params: {
-          title: b.title,
-          author: b.author,
-          year: String(b.year),
-          cover_url: b.cover_url,
-          language: languageId,
-        },
+      setOverlayBook(b);
+      overlayAnim.setValue(0);
+      Animated.timing(overlayAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (!finished) return;
+        setOverlayBook(null);
+        overlayAnim.setValue(0);
+        router.push({
+          pathname: '/(private)/book',
+          params: {
+            title: b.title,
+            author: b.author,
+            year: String(b.year),
+            cover_url: b.cover_url,
+            language: languageId,
+          },
+        });
       });
     },
-    [router, languageId],
+    [router, languageId, overlayBook, overlayAnim],
   );
 
   const renderPage = useCallback(
@@ -290,60 +330,107 @@ export default function LibraryScreen() {
     <View
       style={[styles.container, { paddingTop: insets.top + 6, backgroundColor: palette.background }]}
     > 
-      <View style={[styles.header, { backgroundColor: palette.bookCard }]}>
-        <Text style={[styles.title, { color: palette.detail }]}>{t('library.heading')}</Text>
-        <Text style={[styles.pageCount, { color: palette.detail }]}>
-          {maxPageIndex > 0 ? `${currentPageIndex + 1} / ${maxPageIndex + 1}` : ''}
-        </Text>
-      </View>
+      <Animated.View style={{ flex: 1, opacity: contentOpacity }}>
+        <View style={[styles.header, { backgroundColor: palette.bookCard }]}>
+          <Text style={[styles.title, { color: palette.detail }]}>{t('library.heading')}</Text>
+          <Text style={[styles.pageCount, { color: palette.detail }]}>{maxPageIndex > 0 ? `${currentPageIndex + 1} / ${maxPageIndex + 1}` : ''}</Text>
+        </View>
 
-      {emptyState ? (
-        <View style={styles.emptyBox}>
-          <Text style={styles.emptyText}>{t('library.none')}</Text>
+        {emptyState ? (
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyText}>{t('library.none')}</Text>
+          </View>
+        ) : multiPage ? (
+          <FlatList
+            ref={flatRef}
+            data={availablePages}
+            keyExtractor={(i) => String(i)}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={onMomentumEnd}
+            renderItem={renderPage}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            directionalLockEnabled
+            snapToInterval={screenWidth}
+            disableIntervalMomentum
+            decelerationRate={Platform.OS === 'ios' ? 'fast' : 0.98}
+            nestedScrollEnabled
+            contentContainerStyle={{ paddingBottom: insets.bottom + 48 }}
+          />
+        ) : singlePageItems ? (
+          <View style={[styles.singlePageWrapper, { paddingBottom: insets.bottom + 48 }]}>
+            <GridCards books={singlePageItems} onPressBook={(b) => handlePressBook(b)} />
+          </View>
+        ) : (
+          <View style={styles.pageLoading}>
+            <ActivityIndicator color={palette.tint} />
+            <Text>{t('library.loading')}</Text>
+          </View>
+        )}
+
+        <View
+          style={[styles.footer, { borderTopColor: palette.detail ?? palette.border, paddingBottom: insets.bottom }]}
+        >
+          <Text style={[styles.footerText, { color: palette.text }]}>
+            {total == null
+              ? '...'
+              : t(total === 1 ? 'library.totalSingular' : 'library.totalPlural', { count: total })}
+          </Text>
         </View>
-      ) : multiPage ? (
-        <FlatList
-          ref={flatRef}
-          data={availablePages}
-          keyExtractor={(i) => String(i)}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={onMomentumEnd}
-          renderItem={renderPage}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          directionalLockEnabled
-          snapToInterval={screenWidth}
-          disableIntervalMomentum
-          decelerationRate={Platform.OS === 'ios' ? 'fast' : 0.98}
-          nestedScrollEnabled
-        />
-      ) : singlePageItems ? (
-        <View style={styles.singlePageWrapper}>
-          <GridCards books={singlePageItems} onPressBook={(b) => handlePressBook(b)} />
-        </View>
-      ) : (
-        <View style={styles.pageLoading}>
-          <ActivityIndicator color={palette.tint} />
-          <Text>{t('library.loading')}</Text>
-        </View>
+      </Animated.View>
+
+      {overlayBook && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.overlayContainer,
+            {
+              paddingTop: insets.top + 12,
+              paddingHorizontal: 16,
+              opacity: overlayAnim,
+            },
+          ]}
+        >
+          <Animated.View
+            style={{
+              width: '100%',
+              maxWidth: 420,
+              aspectRatio: 2 / 3,
+              borderRadius: 20,
+              overflow: 'hidden',
+              borderWidth: 2,
+              borderColor: '#d4af37',
+              opacity: overlayAnim,
+              transform: [{ translateY: overlayTranslateY }, { scale: overlayScale }],
+            }}
+          >
+            <Animated.Image
+              source={{
+                uri: overlayBook.cover_url.startsWith('http')
+                  ? overlayBook.cover_url
+                  : `${BASE_URL}${overlayBook.cover_url.startsWith('/') ? '' : '/'}${overlayBook.cover_url}`,
+              }}
+              style={StyleSheet.absoluteFill}
+              resizeMode="cover"
+              fadeDuration={0}
+            />
+          </Animated.View>
+        </Animated.View>
       )}
-
-      <View
-        style={[styles.footer, { borderTopColor: palette.detail ?? palette.border, paddingBottom: insets.bottom }]}
-      >
-        <Text style={[styles.footerText, { color: palette.text }]}>
-          {total == null
-            ? '...'
-            : t(total === 1 ? 'library.totalSingular' : 'library.totalPlural', { count: total })}
-        </Text>
-      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  overlayContainer: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 24,
+    paddingHorizontal: 16,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

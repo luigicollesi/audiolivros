@@ -65,6 +65,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [localLoading, setLocalLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (pendingPhone?.pendingToken) {
@@ -320,17 +321,28 @@ export default function LoginScreen() {
                 if (localError) setLocalError(null);
               }}
             />
-          <TextInput
-            style={styles.input}
-            placeholder={t('login.passwordPlaceholder')}
-            placeholderTextColor={placeholderColor}
-            secureTextEntry
-            value={password}
-            onChangeText={(value) => {
-              setPassword(value);
-              if (localError) setLocalError(null);
-            }}
-          />
+            <View style={styles.passwordWrapper}>
+              <TextInput
+                style={[styles.input, styles.passwordInput]}
+                placeholder={t('login.passwordPlaceholder')}
+                placeholderTextColor={placeholderColor}
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={(value) => {
+                  setPassword(value);
+                  if (localError) setLocalError(null);
+                }}
+              />
+              <Pressable
+                style={styles.passwordToggle}
+                onPress={() => setShowPassword((prev) => !prev)}
+                hitSlop={8}
+              >
+                <Text style={styles.passwordToggleText}>
+                  {showPassword ? t('auth.password.hide') : t('auth.password.show')}
+                </Text>
+              </Pressable>
+            </View>
           <Pressable style={styles.linkRight} onPress={() => router.push('/(auth)/forgot-email')}>
             <Text style={styles.linkRightText}>{t('login.forgotPassword')}</Text>
           </Pressable>
@@ -405,13 +417,13 @@ export default function LoginScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            Ao continuar, você concorda com nossos{' '}
+            {t('login.footerPrefix')}{' '}
             <Text style={styles.footerLink} onPress={() => router.push('/terms')}>
-              Termos
+              {t('login.footerTerms')}
             </Text>{' '}
-            e{' '}
+            {t('login.footerAnd')}{' '}
             <Text style={styles.footerLink} onPress={() => router.push('/terms#privacy')}>
-              Política de Privacidade
+              {t('login.footerPrivacy')}
             </Text>
             .
           </Text>
@@ -512,6 +524,23 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       fontSize: 15,
       color: colors.text,
       backgroundColor: colors.bookCard,
+    },
+    passwordWrapper: {
+      position: 'relative',
+      justifyContent: 'center',
+    },
+    passwordInput: {
+      paddingRight: 84,
+    },
+    passwordToggle: {
+      position: 'absolute',
+      right: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+    },
+    passwordToggleText: {
+      color: colors.tint,
+      fontWeight: '600',
     },
     linkRight: { alignSelf: 'flex-end' },
     linkRightText: { color: colors.tint, fontSize: 12, fontWeight: '600' },

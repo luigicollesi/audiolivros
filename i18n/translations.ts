@@ -35,6 +35,10 @@ const messages: Record<LanguageCode, TranslationDictionary> = {
     'login.provider.apple': 'Continuar com Apple (Simulado)',
     'login.provider.google': 'Continuar com Google (Simulado)',
     'login.provider.microsoft': 'Continuar com Microsoft (Simulado)',
+    'login.footerPrefix': 'Ao continuar, você concorda com nossos',
+    'login.footerTerms': 'Termos',
+    'login.footerPrivacy': 'Política de Privacidade',
+    'login.footerAnd': 'e',
 
     'phone.title': 'Verificação de telefone',
     'phone.subtitle': 'Insira seu número para continuar',
@@ -110,6 +114,8 @@ const messages: Record<LanguageCode, TranslationDictionary> = {
     'book.summaryCollapse': 'Toque para recolher',
     'book.audioLoading': 'Carregando áudio...',
     'book.noCover': 'Sem capa',
+    'book.yourRating': 'Sua avaliação',
+    'book.yourRatingValue': 'Avaliação: {rating}/5',
     'genre.title': 'Selecione um gênero',
     'genre.clear': 'Limpar filtro',
     'genre.close': 'Fechar',
@@ -129,6 +135,55 @@ const messages: Record<LanguageCode, TranslationDictionary> = {
     'profile.signOutConfirmTitle': 'Sair',
     'profile.signOutConfirmMessage': 'Deseja encerrar a sessão?',
     'profile.cancel': 'Cancelar',
+
+    // Auth (multi-idioma)
+    'auth.common.back': 'Voltar',
+    'auth.common.sendCode': 'Enviar código',
+    'auth.common.resendCode': 'Reenviar código',
+    'auth.common.resendIn': 'Reenviar em {seconds}s',
+    'auth.common.confirm': 'Confirmar',
+    'auth.common.next': 'Avançar',
+    'auth.common.submit': 'Enviar',
+    'auth.common.emailPlaceholder': 'email@exemplo.com',
+
+    'auth.register.title': 'Criar conta',
+    'auth.register.subtitle': 'Informe um email válido para receber o código de verificação.',
+
+    'auth.verifyEmail.title': 'Verifique seu email',
+    'auth.verifyEmail.subtitleWithEmail': 'Digite o código enviado para\n{email}',
+    'auth.verifyEmail.subtitleGeneric': 'Digite o código enviado ao seu email.',
+
+    'auth.password.title': 'Definir senha',
+    'auth.password.subtitle': 'Crie uma senha para finalizar o cadastro.',
+    'auth.password.placeholder': 'Senha (mínimo 8 caracteres)',
+    'auth.password.optionalName': 'Nome (opcional)',
+    'auth.password.confirm': 'Confirme a senha',
+    'auth.password.mismatch': 'As senhas precisam ser iguais.',
+    'auth.password.hint': 'A senha deve ter pelo menos {min} caracteres.',
+    'auth.password.continue': 'Continuar',
+    'auth.password.saveAndContinue': 'Salvar e continuar',
+    'auth.password.show': 'Mostrar',
+    'auth.password.hide': 'Ocultar',
+
+    'auth.forgot.title': 'Recuperar senha',
+    'auth.forgot.subtitle': 'Informe seu email para enviar o código de recuperação.',
+    'auth.forgot.codeTitle': 'Recuperar senha',
+    'auth.forgot.codeSubtitle': 'Digite o código enviado para\n{email}',
+    'auth.forgot.passwordTitle': 'Nova senha',
+    'auth.forgot.passwordSubtitle': 'Defina sua nova senha para continuar.',
+
+    'auth.reset.subtitleEmail': 'Email: {email}',
+
+    'auth.terms.title': 'Termos de Uso',
+    'auth.terms.paragraph1':
+      'Antes de continuar, confirme que está de acordo com os termos de uso e a política de privacidade do Audiolivros. Eles descrevem como seus dados são utilizados, quais são as regras de uso do conteúdo e as responsabilidades de cada parte.',
+    'auth.terms.paragraph2':
+      'Ao aceitar, você autoriza o processamento dos dados necessários para funcionamento do aplicativo e declara que usará o conteúdo apenas para fins pessoais, respeitando os direitos dos autores.',
+    'auth.terms.expiresAt': 'O aceite expira em: {label}',
+    'auth.terms.acceptIn': 'Aceitar em {seconds}s',
+    'auth.terms.accept': 'Aceito',
+    'auth.terms.cancel': 'Cancelar',
+    'auth.terms.missingToken': 'Não encontramos seu token de aceite. Volte ao login para gerar um novo.',
   },
   'en-US': {
     'common.confirm': 'Confirm',
@@ -155,6 +210,10 @@ const messages: Record<LanguageCode, TranslationDictionary> = {
     'login.provider.apple': 'Continue with Apple (Simulated)',
     'login.provider.google': 'Continue with Google (Simulated)',
     'login.provider.microsoft': 'Continue with Microsoft (Simulated)',
+    'login.footerPrefix': 'By continuing, you agree to our',
+    'login.footerTerms': 'Terms',
+    'login.footerPrivacy': 'Privacy Policy',
+    'login.footerAnd': 'and',
 
     'phone.title': 'Phone verification',
     'phone.subtitle': 'Enter your number to continue',
@@ -230,6 +289,8 @@ const messages: Record<LanguageCode, TranslationDictionary> = {
     'book.summaryCollapse': 'Tap to collapse',
     'book.audioLoading': 'Loading audio...',
     'book.noCover': 'No cover',
+    'book.yourRating': 'Your rating',
+    'book.yourRatingValue': 'Rating: {rating}/5',
     'genre.title': 'Choose a genre',
     'genre.clear': 'Clear filter',
     'genre.close': 'Close',
@@ -249,6 +310,55 @@ const messages: Record<LanguageCode, TranslationDictionary> = {
     'profile.signOutConfirmTitle': 'Sign out',
     'profile.signOutConfirmMessage': 'Do you want to end your session?',
     'profile.cancel': 'Cancel',
+
+    // Auth (multi-language)
+    'auth.common.back': 'Back',
+    'auth.common.sendCode': 'Send code',
+    'auth.common.resendCode': 'Resend code',
+    'auth.common.resendIn': 'Resend in {seconds}s',
+    'auth.common.confirm': 'Confirm',
+    'auth.common.next': 'Next',
+    'auth.common.submit': 'Submit',
+    'auth.common.emailPlaceholder': 'email@example.com',
+
+    'auth.register.title': 'Create account',
+    'auth.register.subtitle': 'Enter a valid email to receive the verification code.',
+
+    'auth.verifyEmail.title': 'Check your email',
+    'auth.verifyEmail.subtitleWithEmail': 'Enter the code sent to\n{email}',
+    'auth.verifyEmail.subtitleGeneric': 'Enter the code we sent to your email.',
+
+    'auth.password.title': 'Set password',
+    'auth.password.subtitle': 'Create a password to finish signing up.',
+    'auth.password.placeholder': 'Password (min 8 characters)',
+    'auth.password.optionalName': 'Name (optional)',
+    'auth.password.confirm': 'Confirm password',
+    'auth.password.mismatch': 'Passwords must match.',
+    'auth.password.hint': 'Password must be at least {min} characters.',
+    'auth.password.continue': 'Continue',
+    'auth.password.saveAndContinue': 'Save and continue',
+    'auth.password.show': 'Show',
+    'auth.password.hide': 'Hide',
+
+    'auth.forgot.title': 'Recover password',
+    'auth.forgot.subtitle': 'Enter your email to send the recovery code.',
+    'auth.forgot.codeTitle': 'Recover password',
+    'auth.forgot.codeSubtitle': 'Enter the code sent to\n{email}',
+    'auth.forgot.passwordTitle': 'New password',
+    'auth.forgot.passwordSubtitle': 'Set your new password to continue.',
+
+    'auth.reset.subtitleEmail': 'Email: {email}',
+
+    'auth.terms.title': 'Terms of Use',
+    'auth.terms.paragraph1':
+      'Before continuing, confirm that you agree with Audiolivros’ terms of use and privacy policy. They describe how your data is used, the rules for content usage, and each party’s responsibilities.',
+    'auth.terms.paragraph2':
+      'By accepting, you authorize processing of the data needed for the app to function and agree to use the content only for personal purposes, respecting authors’ rights.',
+    'auth.terms.expiresAt': 'Acceptance expires at: {label}',
+    'auth.terms.acceptIn': 'Accept in {seconds}s',
+    'auth.terms.accept': 'I accept',
+    'auth.terms.cancel': 'Cancel',
+    'auth.terms.missingToken': 'We could not find your acceptance token. Go back to login to generate a new one.',
   },
 };
 

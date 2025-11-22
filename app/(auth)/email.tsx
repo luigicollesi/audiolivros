@@ -10,6 +10,7 @@ import { AuthCard } from '@/components/auth/AuthCard';
 import { authLogger } from '@/utils/logger';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
+import { useTranslation } from '@/i18n/LanguageContext';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -19,6 +20,7 @@ export default function EmailRegistrationScreen() {
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const { t } = useTranslation();
 
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -75,11 +77,11 @@ export default function EmailRegistrationScreen() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
         <AuthCard
-          title="Criar conta"
-          subtitle="Informe um email válido para receber o código de verificação."
+          title={t('auth.register.title')}
+          subtitle={t('auth.register.subtitle')}
         >
           <TextField
-            placeholder="email@exemplo.com"
+            placeholder={t('auth.common.emailPlaceholder')}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
@@ -97,12 +99,12 @@ export default function EmailRegistrationScreen() {
             {loading ? (
               <ActivityIndicator color={palette.background} />
             ) : (
-              <Text style={styles.primaryBtnText}>Enviar código</Text>
+              <Text style={styles.primaryBtnText}>{t('auth.common.sendCode')}</Text>
             )}
           </Pressable>
 
           <Pressable style={styles.secondaryBtn} onPress={() => router.back()}>
-            <Text style={styles.secondaryBtnText}>Voltar</Text>
+            <Text style={styles.secondaryBtnText}>{t('auth.common.back')}</Text>
           </Pressable>
         </AuthCard>
       </View>

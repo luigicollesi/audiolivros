@@ -10,6 +10,7 @@ import { BASE_URL } from '@/constants/API';
 import { RootState } from '@/store';
 import { useAuth } from '@/auth/AuthContext';
 import { authLogger } from '@/utils/logger';
+import { useTranslation } from '@/i18n/LanguageContext';
 
 const COUNTDOWN_SECONDS = 5;
 
@@ -43,6 +44,7 @@ export default function TermsAcceptanceScreen() {
 
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (!pendingToken) {
@@ -144,17 +146,16 @@ export default function TermsAcceptanceScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={[styles.title, { color: palette.tint }]}>Termos de Uso</Text>
+        <Text style={[styles.title, { color: palette.tint }]}>{t('auth.terms.title')}</Text>
         <Text style={[styles.paragraph, { color: palette.text }]}>
-          Antes de continuar, confirme que está de acordo com os termos de uso e a política de privacidade do Audiolivros.
-          Eles descrevem como seus dados são utilizados, quais são as regras de uso do conteúdo e as responsabilidades de cada parte.
+          {t('auth.terms.paragraph1')}
         </Text>
         <Text style={[styles.paragraph, { color: palette.text }]}>
-          Ao aceitar, você autoriza o processamento dos dados necessários para funcionamento do aplicativo e declara que usará o conteúdo apenas para fins pessoais, respeitando os direitos dos autores.
+          {t('auth.terms.paragraph2')}
         </Text>
         {expiresAtLabel && (
           <Text style={[styles.expiration, { color: palette.text }]}>
-            O aceite expira em: {expiresAtLabel}
+            {t('auth.terms.expiresAt', { label: expiresAtLabel })}
           </Text>
         )}
       </ScrollView>
@@ -163,7 +164,7 @@ export default function TermsAcceptanceScreen() {
         {!!error && <Text style={styles.error}>{error}</Text>}
         {!pendingToken && (
           <Text style={styles.warning}>
-            Não encontramos seu token de aceite. Volte ao login para gerar um novo.
+            {t('auth.terms.missingToken')}
           </Text>
         )}
         <Pressable
@@ -174,18 +175,20 @@ export default function TermsAcceptanceScreen() {
             { backgroundColor: palette.tint },
             !canAccept && styles.acceptButtonDisabled,
           ]}
-        >
-          {submitting ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.acceptButtonText}>
-              {countdown > 0 ? `Aceitar em ${countdown}s` : 'Aceito'}
+          >
+            {submitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.acceptButtonText}>
+              {countdown > 0
+                ? t('auth.terms.acceptIn', { seconds: countdown })
+                : t('auth.terms.accept')}
             </Text>
-          )}
+            )}
         </Pressable>
 
         <Pressable onPress={handleCancel} style={styles.secondaryButton}>
-          <Text style={styles.secondaryText}>Cancelar</Text>
+          <Text style={styles.secondaryText}>{t('auth.terms.cancel')}</Text>
         </Pressable>
       </View>
     </SafeAreaView>

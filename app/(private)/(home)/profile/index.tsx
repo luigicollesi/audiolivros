@@ -24,7 +24,7 @@ export default function ProfileScreen() {
   const palette = Colors[scheme];
   const isDark = scheme === 'dark';
   const styles = useMemo(() => createStyles(palette, isDark), [palette, isDark]);
-  const { session, signOut, refreshSession } = useAuth();
+  const { session, signOut, updateSessionUser } = useAuth();
   const { authedFetch } = useAuthedFetch();
   const { language: currentLanguage, setLanguage, availableLanguages, t } = useTranslation();
 
@@ -66,7 +66,7 @@ export default function ProfileScreen() {
         if (!res.ok) {
           throw new Error(data?.message || 'Não foi possível atualizar o idioma.');
         }
-        await refreshSession();
+        updateSessionUser({ language: languageId });
         setLanguage(languageId);
         Alert.alert(t('profile.language'), t('profile.languageUpdated'));
       } catch (err: any) {
@@ -76,7 +76,7 @@ export default function ProfileScreen() {
         setLanguagePopoverVisible(false);
       }
     },
-    [authedFetch, refreshSession, user?.language, languageSubmitting, setLanguage, t, currentLanguage],
+    [authedFetch, user?.language, languageSubmitting, setLanguage, t, currentLanguage, updateSessionUser],
   );
 
   const handleSignOut = useCallback(() => {
