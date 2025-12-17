@@ -12,6 +12,7 @@ import { authLogger } from '@/utils/logger';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
 import { useTranslation } from '@/i18n/LanguageContext';
+import { getTimezoneInfo } from '@/utils/timezone';
 
 const MIN_PASSWORD_LEN = 8;
 const createMachineCode = () => `device-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -61,12 +62,17 @@ export default function ForgotPasswordScreen() {
       authLogger.info('Salvando nova senha', { email, resetToken });
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (authToken) headers.Authorization = `Bearer ${authToken}`;
+      const tz = getTimezoneInfo();
+      headers['x-timezone'] = tz.timezone;
+      headers['x-tz-offset'] = String(tz.offsetMinutes);
       const res = await fetch(`${BASE_URL}/auth/email/reset/confirm`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
           resetToken,
           password: trimmedPassword,
+          timezone: tz.timezone,
+          timezoneOffset: tz.offsetMinutes,
         }),
       });
       const data = await res.json().catch(() => ({}));

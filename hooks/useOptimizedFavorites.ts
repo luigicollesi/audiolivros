@@ -18,7 +18,7 @@ interface FavoriteToggleOptions {
  * Optimized favorites management with optimistic updates and request deduplication
  */
 export function useOptimizedFavorites() {
-  const { markFavoritesDirty } = useAuth();
+  const { markFavoritesDirty, adjustLibraryCount } = useAuth();
   const { authedFetch } = useAuthedFetch();
   const pendingRequests = useRef<Map<string, Promise<boolean>>>(new Map());
 
@@ -75,6 +75,7 @@ export function useOptimizedFavorites() {
 
         // Mark favorites as dirty to trigger cache invalidation
         markFavoritesDirty();
+        adjustLibraryCount(newState ? 1 : -1);
         
         favoritesLogger.info('Favorite toggle successful', { title, author, newState });
         return newState;
@@ -96,7 +97,7 @@ export function useOptimizedFavorites() {
     pendingRequests.current.set(bookKey, requestPromise);
     
     return requestPromise;
-  }, [authedFetch, markFavoritesDirty]);
+  }, [authedFetch, markFavoritesDirty, adjustLibraryCount]);
 
   const isPending = useCallback((title: string, author: string, languageId: string): boolean => {
     const bookKey = `${title}|||${author}|||${languageId}`;

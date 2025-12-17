@@ -18,6 +18,7 @@ import { BASE_URL } from '@/constants/API';
 import { RootState } from '@/store';
 import { useAuth } from '@/auth/AuthContext';
 import { authLogger } from '@/utils/logger';
+import { getTimezoneInfo } from '@/utils/timezone';
 import { CodeVerificationView } from '@/components/auth/CodeVerificationView';
 import { useTranslation } from '@/i18n/LanguageContext';
 
@@ -99,8 +100,11 @@ export default function CodeScreen() {
       authLogger.info('Validando código de telefone', {
         pendingToken: pending.pendingToken,
       });
+      const tz = getTimezoneInfo();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (authToken) headers.Authorization = `Bearer ${authToken}`;
+      headers['x-timezone'] = tz.timezone;
+      headers['x-tz-offset'] = String(tz.offsetMinutes);
       const res = await fetch(`${BASE_URL}/auth/phone/verify-code`, {
         method: 'POST',
         headers,
@@ -108,6 +112,8 @@ export default function CodeScreen() {
           pendingToken: pending.pendingToken,
           machineCode: pending.machineCode,
           code: sanitized,
+          timezone: tz.timezone,
+          timezoneOffset: tz.offsetMinutes,
         }),
       });
       const data = await res.json().catch(() => ({}));

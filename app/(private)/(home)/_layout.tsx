@@ -52,6 +52,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
+          //tabBarStyle: { display: 'none' },
           tabBarIcon: ({ focused }) => (
             <Ionicons
               name="person-outline"

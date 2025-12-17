@@ -23,11 +23,20 @@ import { useTranslation } from '@/i18n/LanguageContext';
 import { formatLanguageLabel } from '@/i18n/translations';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
+import { getTimezoneInfo } from '@/utils/timezone';
 
 type SessionPayload = {
   token: string;
   expiresAt?: string | null;
   user: {
+    id?: string;
+    keys?: number;
+    days?: number;
+    earnedKeys?: number;
+    booksRead?: number;
+    libraryCount?: number;
+    favoritesCount?: number;
+    finishedCount?: number;
     email: string;
     name: string | null;
     phone?: string | null;
@@ -186,7 +195,12 @@ export default function LoginScreen() {
     dispatch({ type: 'auth/loginStart' });
     try {
       authLogger.info('Tentando login com email/senha', { email: normalizedEmail });
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const tz = getTimezoneInfo();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'x-timezone': tz.timezone,
+        'x-tz-offset': String(tz.offsetMinutes),
+      };
       if (authToken) {
         headers.Authorization = `Bearer ${authToken}`;
       }
@@ -196,6 +210,8 @@ export default function LoginScreen() {
         body: JSON.stringify({
           email: normalizedEmail,
           password: password,
+          timezone: tz.timezone,
+          timezoneOffset: tz.offsetMinutes,
         }),
       });
       const data = await res.json().catch(() => ({}));

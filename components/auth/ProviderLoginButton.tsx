@@ -11,16 +11,25 @@ import { BASE_URL } from '@/constants/API';
 import { authLogger } from '@/utils/logger';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
+import { getTimezoneInfo } from '@/utils/timezone';
 
 export type SessionPayload = {
+  id?: string;
   token: string;
   expiresAt?: string | null;
   user: {
+    id?: string;
+    keys?: number;
+    days?: number;
     email: string;
     name: string | null;
     phone?: string | null;
     language?: string | null;
     genre?: string | null;
+    booksRead?: number;
+    libraryCount?: number;
+    favoritesCount?: number;
+    finishedCount?: number;
   };
 };
 
@@ -84,14 +93,21 @@ export function createMockProviderButton(config: ProviderStaticConfig) {
         authLogger.info('Iniciando login via provider', {
           provider: config.provider,
         });
+        const tz = getTimezoneInfo();
         const res = await fetch(`${BASE_URL}${apiPath}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-timezone': tz.timezone,
+            'x-tz-offset': String(tz.offsetMinutes),
+          },
           body: JSON.stringify({
             provider: config.provider,
             id_token: config.idToken,
             name: config.sampleName,
             email: config.sampleEmail,
+            timezone: tz.timezone,
+            timezoneOffset: tz.offsetMinutes,
             device: {
               platform: Platform.OS,
               app_version: '1.0.0',

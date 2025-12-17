@@ -41,11 +41,12 @@ export default function LibraryScreen() {
   const { language: baseLanguage, t } = useTranslation();
   const [overlayBook, setOverlayBook] = useState<BookItem | null>(null);
   const overlayAnim = useRef(new Animated.Value(0)).current;
+  const overlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contentOpacity = useMemo(
     () =>
       overlayAnim.interpolate({
         inputRange: [0, 1],
-        outputRange: [1, 0.15],
+        outputRange: [1, 0],
       }),
     [overlayAnim],
   );
@@ -238,6 +239,12 @@ export default function LibraryScreen() {
     }, [scheduleRefresh, triggerPrefetch, currentPageIndex, currentPageData]),
   );
 
+  useEffect(() => () => {
+    if (overlayTimerRef.current) {
+      clearTimeout(overlayTimerRef.current);
+    }
+  }, []);
+
   const onMomentumEnd = useCallback(
     (ev: any) => {
       const x: number = ev.nativeEvent.contentOffset?.x ?? 0;
@@ -271,14 +278,14 @@ export default function LibraryScreen() {
       });
       setOverlayBook(b);
       overlayAnim.setValue(0);
+      if (overlayTimerRef.current) clearTimeout(overlayTimerRef.current);
+
       Animated.timing(overlayAnim, {
         toValue: 1,
         duration: 500,
         useNativeDriver: true,
       }).start(({ finished }) => {
         if (!finished) return;
-        setOverlayBook(null);
-        overlayAnim.setValue(0);
         router.push({
           pathname: '/(private)/book',
           params: {
@@ -290,6 +297,11 @@ export default function LibraryScreen() {
           },
         });
       });
+
+      overlayTimerRef.current = setTimeout(() => {
+        setOverlayBook(null);
+        overlayAnim.setValue(0);
+      }, 2400);
     },
     [router, languageId, overlayBook, overlayAnim],
   );
@@ -388,22 +400,17 @@ export default function LibraryScreen() {
             {
               paddingTop: insets.top + 12,
               paddingHorizontal: 16,
-              opacity: overlayAnim,
             },
           ]}
         >
           <Animated.View
-            style={{
-              width: '100%',
-              maxWidth: 420,
-              aspectRatio: 2 / 3,
-              borderRadius: 20,
-              overflow: 'hidden',
-              borderWidth: 2,
-              borderColor: '#d4af37',
-              opacity: overlayAnim,
-              transform: [{ translateY: overlayTranslateY }, { scale: overlayScale }],
-            }}
+            style={[
+              styles.overlayCard,
+              {
+                opacity: overlayAnim,
+                transform: [{ translateY: overlayTranslateY }, { scale: overlayScale }],
+              },
+            ]}
           >
             <Animated.Image
               source={{
@@ -411,7 +418,7 @@ export default function LibraryScreen() {
                   ? overlayBook.cover_url
                   : `${BASE_URL}${overlayBook.cover_url.startsWith('/') ? '' : '/'}${overlayBook.cover_url}`,
               }}
-              style={StyleSheet.absoluteFill}
+              style={styles.overlayImage}
               resizeMode="cover"
               fadeDuration={0}
             />
@@ -472,4 +479,23 @@ const styles = StyleSheet.create({
   },
   emptyText: { fontSize: 16, opacity: 0.7, textAlign: 'center' },
   singlePageWrapper: { flex: 1, width: '100%' },
+  overlayCard: {
+    width: '100%',
+    maxWidth: 420,
+    aspectRatio: 2 / 3,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#d4af37',
+    backgroundColor: 'transparent',
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  overlayImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 18,
+  },
 });

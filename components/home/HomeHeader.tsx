@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
+  Animated,
   LayoutChangeEvent,
   Pressable,
   StyleSheet,
@@ -9,6 +10,9 @@ import {
 
 import { Text, View } from '@/components/shared/Themed';
 import type { HomeHeaderStrings } from '@/types/home';
+
+const CLOSE_BUTTON_WIDTH = 64;
+const ANIM_MS = 200;
 
 type Props = {
   paddingTop: number;
@@ -20,7 +24,7 @@ type Props = {
   actionTextColor: string;
   placeholderColor: string;
   isDark: boolean;
-  keyboardVisible: boolean;
+  keyboardVisible: boolean; // mantido para compatibilidade (não usado)
   searchInputRef: React.RefObject<TextInput | null>;
   searchInput: string;
   searchApplied: string;
@@ -60,6 +64,86 @@ export function HomeHeader({
   const trimmedValue = searchInput.trim();
   const submitDisabled = !trimmedValue || trimmedValue === searchApplied;
 
+  const closeWidth = useRef(new Animated.Value(0)).current;
+  const chipAnim = useRef(new Animated.Value(hasClearChip ? 1 : 0)).current;
+  const titleAnim = useRef(new Animated.Value(1)).current;
+  const closeLabelOpacity = closeWidth.interpolate({
+    inputRange: [0, CLOSE_BUTTON_WIDTH * 0.7, CLOSE_BUTTON_WIDTH],
+    outputRange: [0, 0, 1],
+    extrapolate: 'clamp',
+  });
+
+  const expandClose = useCallback(() => {
+    Animated.timing(closeWidth, {
+      toValue: CLOSE_BUTTON_WIDTH,
+      duration: ANIM_MS,
+      useNativeDriver: false,
+    }).start();
+  }, [closeWidth]);
+
+  const collapseClose = useCallback((dismiss: boolean) => {
+    Animated.timing(closeWidth, {
+      toValue: 0,
+      duration: ANIM_MS,
+      useNativeDriver: false,
+    }).start(() => {
+      if (dismiss) onDismissKeyboard();
+    });
+  }, [closeWidth, onDismissKeyboard]);
+
+  useEffect(() => {
+    if (!keyboardVisible) {
+      collapseClose(false);
+    }
+  }, [keyboardVisible, collapseClose]);
+
+  useEffect(() => {
+    Animated.timing(chipAnim, {
+      toValue: hasClearChip ? 1 : 0,
+      duration: ANIM_MS,
+      useNativeDriver: true,
+    }).start();
+  }, [chipAnim, hasClearChip]);
+
+  useEffect(() => {
+    titleAnim.setValue(0);
+    Animated.timing(titleAnim, {
+      toValue: 1,
+      duration: ANIM_MS,
+      useNativeDriver: true,
+    }).start();
+  }, [strings.title, titleAnim]);
+
+  const chipStyle = useMemo(
+    () => ({
+      opacity: chipAnim,
+      transform: [
+        {
+          translateY: chipAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [-4, 0],
+          }),
+        },
+      ],
+    }),
+    [chipAnim],
+  );
+
+  const titleStyle = useMemo(
+    () => ({
+      opacity: titleAnim,
+      transform: [
+        {
+          translateY: titleAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [6, 0],
+          }),
+        },
+      ],
+    }),
+    [titleAnim],
+  );
+
   return (
     <RNView
       style={[
@@ -77,31 +161,34 @@ export function HomeHeader({
           { backgroundColor: cardColor },
         ]}
       >
-        <Text
+        <Animated.Text
           style={[
             styles.title,
             { color: detailColor ?? textColor },
+            titleStyle,
           ]}
         >
           {strings.title}
-        </Text>
+        </Animated.Text>
         <RNView style={styles.headerActions}>
-          {hasClearChip && (
-            <Pressable
-              onPress={onClearChip}
-              style={[
-                styles.searchChip,
-                {
-                  borderColor: detailColor ?? textColor,
-                  backgroundColor: cardColor,
-                },
-              ]}
-            >
-              <Text style={[styles.searchChipText, { color: accentColor }]}>
-                {strings.clearLabel}
-              </Text>
-            </Pressable>
-          )}
+          <Animated.View style={chipStyle} pointerEvents={hasClearChip ? 'auto' : 'none'}>
+            {hasClearChip && (
+              <Pressable
+                onPress={onClearChip}
+                style={[
+                  styles.searchChip,
+                  {
+                    borderColor: detailColor ?? textColor,
+                    backgroundColor: cardColor,
+                  },
+                ]}
+              >
+                <Text style={[styles.searchChipText, { color: accentColor }]}>
+                  {strings.clearLabel}
+                </Text>
+              </Pressable>
+            )}
+          </Animated.View>
           <Pressable
             onPress={onOpenFilters}
             style={[
@@ -132,6 +219,7 @@ export function HomeHeader({
           placeholder={strings.searchPlaceholder}
           value={searchInput}
           onChangeText={onChangeSearch}
+          onFocus={expandClose}
           style={[
             styles.searchInput,
             {
@@ -163,18 +251,18 @@ export function HomeHeader({
             {strings.searchSubmitLabel}
           </Text>
         </Pressable>
-        {keyboardVisible && (
-          <Pressable style={styles.keyboardButton} onPress={onDismissKeyboard}>
-            <Text
+        <Animated.View style={[styles.closeSlot, { width: closeWidth }]}>
+          <Pressable style={styles.keyboardButton} onPress={() => collapseClose(true)}>
+            <Animated.Text
               style={[
                 styles.keyboardButtonText,
-                { color: accentColor },
+                { color: accentColor, opacity: closeLabelOpacity },
               ]}
             >
               {strings.keyboardDismissLabel}
-            </Text>
+            </Animated.Text>
           </Pressable>
-        )}
+        </Animated.View>
       </RNView>
     </RNView>
   );
@@ -244,11 +332,17 @@ const styles = StyleSheet.create({
   },
   searchButtonDisabled: { opacity: 0.6 },
   searchButtonText: { fontWeight: '600' },
+  closeSlot: {
+    overflow: 'hidden',
+    alignItems: 'flex-end',
+  },
   keyboardButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
+    height: 36,
+    justifyContent: 'center',
   },
-  keyboardButtonText: { fontWeight: '600' },
+  keyboardButtonText: { fontWeight: '600', fontSize: 12 },
   searchChip: {
     paddingHorizontal: 10,
     paddingVertical: 6,

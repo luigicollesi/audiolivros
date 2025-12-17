@@ -1,5 +1,6 @@
 import { BASE_URL } from '@/constants/API';
 import { audioLogger } from '@/utils/logger';
+import { useAuth } from '@/auth/AuthContext';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AuthedFetch } from './types';
 // Session-based completion tracking (no persistent cache)
@@ -73,6 +74,7 @@ export function useListeningProgress({
   fetchJSON,
   initialProgressHint,
 }: UseListeningProgressOptions) {
+  const { markFinishedDirty } = useAuth();
   const [initialPosition, setInitialPosition] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(() => Boolean(bookId) || Boolean(audioPath));
   const [resolvedKey, setResolvedKey] = useState<string | null>(null);
@@ -340,6 +342,7 @@ export function useListeningProgress({
             completedAt: data?.completedAt,
             sessionSequence: sessionCompletionState.get(bookId),
           });
+          markFinishedDirty();
         } catch (error: any) {
           finishStateRef.current = 'idle';
           audioLogger.error('Erro ao enviar finalização do livro', {
@@ -350,7 +353,7 @@ export function useListeningProgress({
         }
       })();
     },
-    [audioFileName, authedFetch, bookId, clearLocalProgressCache],
+    [audioFileName, authedFetch, bookId, clearLocalProgressCache, markFinishedDirty],
   );
 
   const postUpdate = useCallback(

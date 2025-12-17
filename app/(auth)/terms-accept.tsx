@@ -11,6 +11,7 @@ import { RootState } from '@/store';
 import { useAuth } from '@/auth/AuthContext';
 import { authLogger } from '@/utils/logger';
 import { useTranslation } from '@/i18n/LanguageContext';
+import { getTimezoneInfo } from '@/utils/timezone';
 
 const COUNTDOWN_SECONDS = 5;
 
@@ -84,13 +85,20 @@ export default function TermsAcceptanceScreen() {
     setError(null);
     dispatch({ type: 'auth/loginStart' });
     try {
+      const tz = getTimezoneInfo();
       const res = await fetch(`${BASE_URL}/auth/terms/accept`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+          'x-timezone': tz.timezone,
+          'x-tz-offset': String(tz.offsetMinutes),
         },
-        body: JSON.stringify({ pendingToken }),
+        body: JSON.stringify({
+          pendingToken,
+          timezone: tz.timezone,
+          timezoneOffset: tz.offsetMinutes,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {

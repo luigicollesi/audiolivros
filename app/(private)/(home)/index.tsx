@@ -118,6 +118,11 @@ export default function HomeScreen() {
   const overlayAnim = useRef(new Animated.Value(0)).current;
   const [overlayBook, setOverlayBook] = useState<BookItem | null>(null);
   const overlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const earnedToastAnim = useRef(new Animated.Value(0)).current;
+  const [earnedToast, setEarnedToast] = useState<string | null>(null);
+  const earnedToastTokenRef = useRef<string | null>(null);
+  const toastBg = isDark ? 'rgba(15,23,42,0.82)' : 'rgba(15,23,42,0.78)';
+  const toastBorder = palette.detail ?? palette.border;
   useEffect(() => {
     if (!incomingGenre) return;
     setSelectedGenre((prev: GenreOption | null) => {
@@ -514,6 +519,34 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
+    const earned = session?.user?.earnedKeys ?? 0;
+    const token = session?.token ?? null;
+    if (!token || earned <= 0) return;
+    if (earnedToastTokenRef.current === token) return;
+
+    const msg =
+      earned === 1
+        ? t('profile.keysRewardOne', { count: earned })
+        : t('profile.keysRewardOther', { count: earned });
+    earnedToastTokenRef.current = token;
+    setEarnedToast(msg);
+    earnedToastAnim.setValue(0);
+    Animated.timing(earnedToastAnim, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start(() => {
+      setTimeout(() => {
+        Animated.timing(earnedToastAnim, {
+          toValue: 0,
+          duration: 180,
+          useNativeDriver: true,
+        }).start(() => setEarnedToast(null));
+      }, 1200);
+    });
+  }, [session?.token, session?.user?.earnedKeys, earnedToastAnim, t]);
+
+  useEffect(() => {
     return () => {
       if (overlayTimerRef.current) {
         clearTimeout(overlayTimerRef.current);
@@ -850,6 +883,29 @@ export default function HomeScreen() {
         allowClear
         title={t('genre.title')}
       />
+      {earnedToast && (
+        <View pointerEvents="none" style={styles.toastContainer}>
+          <Animated.View
+            style={[
+              styles.toast,
+              { backgroundColor: toastBg, borderColor: toastBorder },
+              {
+                opacity: earnedToastAnim,
+                transform: [
+                  {
+                    translateY: earnedToastAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [12, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Text style={styles.toastText}>{earnedToast}</Text>
+          </Animated.View>
+        </View>
+      )}
     </View>
   );
 }
@@ -894,4 +950,27 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 12,
   },
+  toastContainer: {
+      backgroundColor: 'transparent',
+      position: 'absolute',
+      opacity: 0.8,
+      top: 0,
+      bottom: 0,
+      left: 0,
+      right: 0,
+      alignItems: 'center',
+      justifyContent: 'center',
+      pointerEvents: 'none',
+  },
+  toast: {
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      backgroundColor: 'rgba(10, 16, 32, 0.83)',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: '#d4af37',
+      maxWidth: 260,
+      minWidth: 180,
+  },
+  toastText: { color: '#fff', fontWeight: '700', textAlign: 'center' },
 });

@@ -19,13 +19,21 @@ import React, {
 } from 'react';
 
 type User = {
+  id?: string;
+  keys?: number;
+  days?: number;
+  earnedKeys?: number;
+  booksRead?: number;
+  libraryCount?: number;
+  favoritesCount?: number;
+  finishedCount?: number;
   email: string;
   name: string | null;
   phone?: string | null;
   language?: string | null;
   genre?: string | null;
 };
-type Session = { token: string; user: User; expiresAt?: string | null } | null;
+type Session = { token: string; user: User; expiresAt?: string | null; earnedKeys?: number } | null;
 
 type AuthContextType = {
   session: Session;
@@ -35,8 +43,12 @@ type AuthContextType = {
   refreshSession: () => Promise<void>;
   refreshing: boolean;
   favoritesDirty: boolean;
+  finishedDirty: boolean;
   markFavoritesDirty: () => void;
+  markFinishedDirty: () => void;
   acknowledgeFavorites: () => void;
+  acknowledgeFinished: () => void;
+  adjustLibraryCount: (delta: number) => void;
   authToken: string | null;
   setAuthToken: (token: string | null) => void;
   updateSessionUser: (patch: Partial<User>) => void;
@@ -108,6 +120,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [favoritesDirty, setFavoritesDirty] = useState(true);
+  const [finishedDirty, setFinishedDirty] = useState(true);
   const [authToken, setAuthTokenState] = useState<string | null>(null);
 
   const { setLanguage, language: currentLanguage } = useLanguage();
@@ -281,6 +294,35 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     setFavoritesDirty(false);
   }, []);
 
+  const markFinishedDirty = useCallback(() => {
+    setFinishedDirty(true);
+  }, []);
+
+  const acknowledgeFinished = useCallback(() => {
+    setFinishedDirty(false);
+  }, []);
+
+  const adjustLibraryCount = useCallback((delta: number) => {
+    setSession((prev) => {
+      if (!prev) return prev;
+      const currentLibrary = prev.user.libraryCount ?? prev.user.favoritesCount ?? 0;
+      const nextLibrary = Math.max(0, currentLibrary + delta);
+      const currentFav = prev.user.favoritesCount ?? prev.user.libraryCount ?? 0;
+      const nextFav = Math.max(0, currentFav + delta);
+      const nextUser = {
+        ...prev.user,
+        libraryCount: nextLibrary,
+        favoritesCount: nextFav,
+      };
+      const nextSession: NonNullable<Session> = {
+        ...prev,
+        user: nextUser,
+      };
+      sessionRef.current = nextSession;
+      return nextSession;
+    });
+  }, []);
+
   const updateSessionUser = useCallback((patch: Partial<User>) => {
     setSession((prev) => {
       if (!prev) return prev;
@@ -353,8 +395,12 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       refreshSession,
       refreshing,
       favoritesDirty,
+      finishedDirty,
       markFavoritesDirty,
+      markFinishedDirty,
       acknowledgeFavorites,
+      acknowledgeFinished,
+      adjustLibraryCount,
       authToken,
       setAuthToken,
       updateSessionUser,
@@ -367,8 +413,12 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       refreshSession,
       refreshing,
       favoritesDirty,
+      finishedDirty,
       markFavoritesDirty,
+      markFinishedDirty,
       acknowledgeFavorites,
+      acknowledgeFinished,
+      adjustLibraryCount,
       authToken,
       setAuthToken,
       updateSessionUser,
