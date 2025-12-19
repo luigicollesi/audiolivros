@@ -22,6 +22,7 @@ import {
   RefreshControl,
   StyleSheet,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { BASE_URL } from '@/constants/API';
 
 const PAGE_SIZE = 10;
@@ -294,6 +295,7 @@ export default function LibraryScreen() {
             year: String(b.year),
             cover_url: b.cover_url,
             language: languageId,
+            locked: b.locked ? 'true' : 'false',
           },
         });
       });
@@ -422,6 +424,22 @@ export default function LibraryScreen() {
               resizeMode="cover"
               fadeDuration={0}
             />
+            {overlayBook.locked && (
+              <View
+                style={[
+                  styles.overlayLock,
+                  {
+                    backgroundColor: scheme === 'dark' ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.45)',
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="lock-closed"
+                  size={32}
+                  color={scheme === 'dark' ? '#111827' : '#f8fafc'}
+                />
+              </View>
+            )}
           </Animated.View>
         </Animated.View>
       )}
@@ -496,6 +514,12 @@ const styles = StyleSheet.create({
   overlayImage: {
     width: '100%',
     height: '100%',
+    borderRadius: 18,
+  },
+  overlayLock: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 18,
   },
 });

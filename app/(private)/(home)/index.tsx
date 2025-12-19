@@ -15,6 +15,7 @@ import React, {
 } from 'react';
 import { ActivityIndicator, Animated, Dimensions, Image, Keyboard, LayoutChangeEvent, StyleSheet, TextInput } from 'react-native';
 import type { FlatList } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '@/auth/AuthContext';
 import Colors from '@/constants/Colors';
@@ -56,6 +57,7 @@ export default function HomeScreen() {
   );
   const insets = useSafeInsets();
   const { session } = useAuth();
+  const { earnedKeysToastShown, markEarnedKeysToastShown } = useAuth();
   const { scheduleRefresh } = useSmartRefresh();
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
@@ -522,6 +524,7 @@ export default function HomeScreen() {
     const earned = session?.user?.earnedKeys ?? 0;
     const token = session?.token ?? null;
     if (!token || earned <= 0) return;
+    if (earnedKeysToastShown) return;
     if (earnedToastTokenRef.current === token) return;
 
     const msg =
@@ -544,7 +547,8 @@ export default function HomeScreen() {
         }).start(() => setEarnedToast(null));
       }, 1200);
     });
-  }, [session?.token, session?.user?.earnedKeys, earnedToastAnim, t]);
+    markEarnedKeysToastShown();
+  }, [session?.token, session?.user?.earnedKeys, earnedKeysToastShown, earnedToastAnim, t, markEarnedKeysToastShown]);
 
   useEffect(() => {
     return () => {
@@ -666,6 +670,7 @@ export default function HomeScreen() {
             year: String(book.year),
             cover_url: book.cover_url,
             language: languageId,
+            locked: book.locked ? 'true' : 'false',
           },
         });
       });
@@ -854,15 +859,33 @@ export default function HomeScreen() {
             },
           ]}
         >
-            <Image
-              source={{
-                uri: overlayBook.cover_url.startsWith('http')
-                  ? overlayBook.cover_url
-                  : `${BASE_URL}${overlayBook.cover_url.startsWith('/') ? '' : '/'}${overlayBook.cover_url}`,
-              }}
-              style={styles.overlayImage}
-              resizeMode="cover"
-            />
+            <View>
+              <Image
+                source={{
+                  uri: overlayBook.cover_url.startsWith('http')
+                    ? overlayBook.cover_url
+                    : `${BASE_URL}${overlayBook.cover_url.startsWith('/') ? '' : '/'}${overlayBook.cover_url}`,
+                }}
+                style={styles.overlayImage}
+                resizeMode="cover"
+              />
+              {overlayBook.locked && (
+                <View
+                  style={[
+                    styles.overlayLock,
+                    {
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.45)',
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name="lock-closed"
+                    size={32}
+                    color={isDark ? '#111827' : '#f8fafc'}
+                  />
+                </View>
+              )}
+            </View>
           </Animated.View>
         </Animated.View>
       )}
@@ -936,6 +959,12 @@ const styles = StyleSheet.create({
   overlayImage: {
     width: '100%',
     height: '100%',
+    borderRadius: 18,
+  },
+  overlayLock: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 18,
   },
   overlayLoading: {

@@ -16,6 +16,7 @@ import { BASE_URL } from '@/constants/API';
 import Colors from '@/constants/Colors';
 import { BookItem } from '@/components/book/BookGrid';
 import { useTranslation } from '@/i18n/LanguageContext';
+import { Ionicons } from '@expo/vector-icons';
 
 type HomeShelfProps = {
   title: string;
@@ -139,6 +140,11 @@ function PosterCardBase({ book, onPress, baseUrl = BASE_URL }: PosterCardProps) 
   const { session } = useAuth();
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
+  const isDark = scheme === 'dark';
+  const isLocked =
+    book.locked === true ||
+    book.locked === 'true' ||
+    book.locked === 1;
   const token = session?.token;
 
   const imageSource = useMemo(() => {
@@ -164,11 +170,32 @@ function PosterCardBase({ book, onPress, baseUrl = BASE_URL }: PosterCardProps) 
       ]}
       onPress={onPress}
     >
-      <Image
-        source={imageSource}
-        style={styles.poster}
-        resizeMode="cover"
-      />
+      <View style={styles.posterWrapper}>
+        <Image
+          source={imageSource}
+          style={styles.poster}
+          resizeMode="cover"
+        />
+        {isLocked && (
+          <View
+            style={[
+              styles.lockOverlay,
+              {
+                backgroundColor: isDark
+                  ? 'rgba(255,255,255,0.38)'
+                  : 'rgba(0,0,0,0.45)',
+              },
+            ]}
+            pointerEvents="none"
+          >
+            <Ionicons
+              name="lock-closed"
+              size={28}
+              color={isDark ? '#111827' : '#f8fafc'}
+            />
+          </View>
+        )}
+      </View>
       <View style={[styles.meta, { backgroundColor: palette.bookCard }]}>
         <Text
           style={[styles.title, { color: palette.text }]}
@@ -237,6 +264,14 @@ const styles = StyleSheet.create({
     height: 200,
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
+  },
+  posterWrapper: {
+    position: 'relative',
+  },
+  lockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   meta: {
     paddingHorizontal: 10,

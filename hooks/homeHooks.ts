@@ -39,6 +39,7 @@ type InsightBookSummary = {
   cover_url?: string;
   progressPercent?: number | null;
   listeningProgressPercent?: number | null;
+  locked?: boolean | string | number | null;
 };
 
 type InsightListResponse<T> = {
@@ -362,6 +363,7 @@ function mapInsightBook(summary?: InsightBookSummary): BookItem {
       year: 0,
       cover_url: '',
       listeningProgressPercent: null,
+      locked: false,
     };
   }
 
@@ -384,6 +386,10 @@ function mapInsightBook(summary?: InsightBookSummary): BookItem {
     year,
     cover_url: summary.cover_url ?? '',
     listeningProgressPercent: progress,
+    locked:
+      summary.locked === true ||
+      summary.locked === 'true' ||
+      summary.locked === 1,
   };
 }
 

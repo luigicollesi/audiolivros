@@ -15,6 +15,7 @@ import { BASE_URL } from '@/constants/API';
 import { useSafeInsets } from '@/hooks/useSafeInsets';
 import { useAuth } from '@/auth/AuthContext';
 import { useTranslation } from '@/i18n/LanguageContext';
+import { Ionicons } from '@expo/vector-icons';
 
 const GRID_CARD_HEIGHT = 320;
 
@@ -24,6 +25,7 @@ export type BookItem = {
   year: number;
   cover_url: string;
   listeningProgressPercent?: number | null;
+  locked?: boolean;
 };
 
 export type BooksResponse = {
@@ -113,6 +115,7 @@ function BookCardBase({ book, baseUrl = BASE_URL, headers, onPress }: BookCardPr
   const scheme = useColorScheme() ?? 'light';
   const theme = Colors[scheme];
   const { t } = useTranslation();
+  const isDark = scheme === 'dark';
 
   const imageUri = useMemo(() => {
     const path = book.cover_url.startsWith('/') ? book.cover_url : `/${book.cover_url}`;
@@ -128,6 +131,10 @@ function BookCardBase({ book, baseUrl = BASE_URL, headers, onPress }: BookCardPr
 
   const [imgError, setImgError] = useState(false);
   const [imgLoading, setImgLoading] = useState(true);
+  const isLocked =
+    book.locked === true ||
+    book.locked === 'true' ||
+    book.locked === 1;
   const progressPercent =
     typeof book.listeningProgressPercent === 'number'
       ? Math.max(0, Math.min(100, Math.round(book.listeningProgressPercent)))
@@ -162,7 +169,26 @@ function BookCardBase({ book, baseUrl = BASE_URL, headers, onPress }: BookCardPr
             <Text style={styles.coverFallbackText}>{t('book.noCover')}</Text>
           </RNView>
         )}
-        {imgLoading && !imgError && <RNView style={styles.coverOverlay} />}
+        {(imgLoading && !imgError) && <RNView style={styles.coverOverlay} />}
+        {isLocked && (
+          <RNView
+            style={[
+              styles.lockOverlay,
+              {
+                backgroundColor: isDark
+                  ? 'rgba(255,255,255,0.38)'
+                  : 'rgba(0,0,0,0.45)',
+              },
+            ]}
+            pointerEvents="none"
+          >
+            <Ionicons
+              name="lock-closed"
+              size={28}
+              color={isDark ? '#111827' : '#f8fafc'}
+            />
+          </RNView>
+        )}
       </RNView>
 
       <View style={[styles.cardInfo, { backgroundColor: theme.bookCard }]}>
@@ -221,6 +247,11 @@ const styles = StyleSheet.create({
   coverOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.04)',
+  },
+  lockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   coverFallback: {
     flex: 1,

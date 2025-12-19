@@ -30,12 +30,10 @@ export function useBookSummary(url: string | null | undefined, fetchJSON: FetchJ
         summariesLogger.info('Solicitando resumo do livro', { url });
         const data = await fetchJSON<SummaryResponse>(url);
         if (cancelled) return;
-        if (!data?.audio_url) {
-          throw new Error('Resposta sem "audio_url".');
-        }
+        const locked = Boolean(data.locked) || !data.audio_url || !data.summary;
         setSummary({
           audio_url: data.audio_url,
-          summary: data.summary,
+          summary: locked ? null : data.summary,
           favorite: Boolean(data.favorite),
           bookId: typeof data.bookId === 'string' ? data.bookId : undefined,
           listeningProgress: data.listeningProgress ?? null,
@@ -44,6 +42,7 @@ export function useBookSummary(url: string | null | undefined, fetchJSON: FetchJ
                 .map((item) => (typeof item === 'string' ? item.trim() : ''))
                 .filter((item) => item.length > 0)
             : undefined,
+          locked,
         });
         summariesLogger.info('Resumo carregado com sucesso', { url, favorite: Boolean(data.favorite) });
       } catch (err: any) {

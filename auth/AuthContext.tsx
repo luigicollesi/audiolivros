@@ -27,6 +27,7 @@ type User = {
   libraryCount?: number;
   favoritesCount?: number;
   finishedCount?: number;
+  unlockedCount?: number;
   email: string;
   name: string | null;
   phone?: string | null;
@@ -52,6 +53,8 @@ type AuthContextType = {
   authToken: string | null;
   setAuthToken: (token: string | null) => void;
   updateSessionUser: (patch: Partial<User>) => void;
+  earnedKeysToastShown: boolean;
+  markEarnedKeysToastShown: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -122,6 +125,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const [favoritesDirty, setFavoritesDirty] = useState(true);
   const [finishedDirty, setFinishedDirty] = useState(true);
   const [authToken, setAuthTokenState] = useState<string | null>(null);
+  const [earnedKeysToastShown, setEarnedKeysToastShown] = useState(false);
 
   const { setLanguage, language: currentLanguage } = useLanguage();
 
@@ -404,6 +408,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       authToken,
       setAuthToken,
       updateSessionUser,
+      earnedKeysToastShown,
+      markEarnedKeysToastShown: () => setEarnedKeysToastShown(true),
     }),
     [
       session,
@@ -422,6 +428,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       authToken,
       setAuthToken,
       updateSessionUser,
+      earnedKeysToastShown,
     ]
   );
 

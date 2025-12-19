@@ -24,10 +24,11 @@ import { HighlightedSummary } from '@/features/book/HighlightedSummary';
 import { useBookAudio } from '@/features/book/useBookAudio';
 import { useBookSummary } from '@/features/book/useBookSummary';
 import { useListeningProgress } from '@/features/book/useListeningProgress';
+import { useRequestCache } from '@/hooks/useRequestCache';
 
 export default function BookScreen() {
-  const { title, author, year, cover_url, language } =
-    useLocalSearchParams<{ title: string; author: string; year: string; cover_url: string; language?: string }>();
+  const { title, author, year, cover_url, language, locked: lockedParam } =
+    useLocalSearchParams<{ title: string; author: string; year: string; cover_url: string; language?: string; locked?: string }>();
 
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
@@ -35,7 +36,8 @@ export default function BookScreen() {
   const insets = useSafeInsets();
 
   const { fetchJSON, authedFetch } = useAuthedFetch();
-  const { session } = useAuth();
+  const { session, updateSessionUser } = useAuth();
+  const requestCache = useRequestCache();
   const { scheduleRefresh } = useSmartRefresh();
   const { toggleFavorite, isPending } = useOptimizedFavorites();
   const token = session?.token ?? '';
@@ -53,6 +55,13 @@ export default function BookScreen() {
     () => (coverHeaders ? { uri: imageUri, headers: coverHeaders } : { uri: imageUri }),
     [imageUri, coverHeaders],
   );
+  const initialLocked = useMemo(() => {
+    if (typeof lockedParam === 'string') {
+      const val = lockedParam.toLowerCase();
+      return val === 'true' || val === '1' || val === 'locked';
+    }
+    return false;
+  }, [lockedParam]);
 
   const lang = useMemo(() => {
     const routeLang = typeof language === 'string' ? language.trim() : '';
@@ -90,12 +99,30 @@ export default function BookScreen() {
   const [reviewRating, setReviewRating] = useState<number | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+  const [unlockedSummary, setUnlockedSummary] = useState<{ summary: string | null; audio_url: string | null } | null>(null);
+  const [noKeysVisible, setNoKeysVisible] = useState(false);
+  const noKeysAnim = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const detailsAnim = useRef(new Animated.Value(0)).current;
   const uiTransition = useRef(new Animated.Value(0)).current;
+  const [lockedVisual, setLockedVisual] = useState<boolean>(initialLocked);
+  const apiLocked = useMemo(
+    () => Boolean(summary?.locked) || (summary !== null && !summary?.audio_url),
+    [summary],
+  );
+  useEffect(() => {
+    if (summary) {
+      setLockedVisual(apiLocked && !unlockedSummary);
+    }
+  }, [summary, apiLocked, unlockedSummary]);
   const audioPath = useMemo(
-    () => (progressReady ? summary?.audio_url ?? null : null),
-    [progressReady, summary?.audio_url],
+    () => {
+      const effectiveAudio = unlockedSummary?.audio_url ?? summary?.audio_url ?? null;
+      return progressReady && !lockedVisual ? effectiveAudio : null;
+    },
+    [progressReady, summary?.audio_url, lockedVisual, unlockedSummary?.audio_url],
   );
   
   // Create consistent book ID for optimized favorites
@@ -188,6 +215,8 @@ export default function BookScreen() {
     } else if (!summary) {
       setFavorite(false);
     }
+    setUnlockedSummary(null);
+    setUnlockError(null);
   }, [summary]);
 
   useEffect(() => {
@@ -228,6 +257,88 @@ export default function BookScreen() {
     });
     setSummaryExpanded((prev) => !prev);
   }, [summaryExpanded]);
+
+  const handleUnlock = useCallback(async () => {
+    if (!summary?.bookId) return;
+    setUnlockError(null);
+    setUnlocking(true);
+    try {
+      const res = await authedFetch(`${BASE_URL}/summaries/unlock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookId: summary.bookId, language: lang }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.message || 'Falha ao desbloquear livro.');
+      }
+      if (!data?.hasKey || data?.unlocked === false) {
+        setUnlockError(
+          t('book.noKeys') ??
+            'Você não tem chaves disponíveis para desbloquear este livro.',
+        );
+        setNoKeysVisible(true);
+        noKeysAnim.setValue(0);
+        Animated.timing(noKeysAnim, {
+          toValue: 1,
+          duration: 220,
+          useNativeDriver: true,
+        }).start();
+        return;
+      }
+
+      const nextSummary = {
+        summary: typeof data?.summary === 'string' ? data.summary : null,
+        audio_url: typeof data?.audio_url === 'string' ? data.audio_url : null,
+      };
+      setUnlockedSummary(nextSummary);
+      setLockedVisual(false);
+      setUnlockError(null);
+      setNoKeysVisible(false);
+      if (typeof data?.remainingKeys === 'number') {
+        updateSessionUser({ keys: data.remainingKeys });
+      }
+      const currentUnlocked =
+        typeof session?.user?.unlockedCount === 'number'
+          ? session.user.unlockedCount
+          : (session?.user as any)?.unlockedCount ?? 0;
+      updateSessionUser({ unlockedCount: currentUnlocked + 1 });
+
+      const matchesCurrentBook = (item: any) => {
+        const sameTitle =
+          typeof item?.title === 'string' &&
+          item.title.trim().toLowerCase() === String(title ?? '').trim().toLowerCase();
+        const sameAuthor =
+          typeof item?.author === 'string' &&
+          item.author.trim().toLowerCase() === String(author ?? '').trim().toLowerCase();
+        return sameTitle && sameAuthor;
+      };
+
+      const unlockItems = (dataObj: any) => {
+        if (!dataObj) return dataObj;
+        if (Array.isArray(dataObj?.items)) {
+          let changed = false;
+          const items = dataObj.items.map((item: any) => {
+            if (matchesCurrentBook(item) && item?.locked !== false) {
+              changed = true;
+              return { ...item, locked: false };
+            }
+            return item;
+          });
+          return changed ? { ...dataObj, items } : dataObj;
+        }
+        return dataObj;
+      };
+
+      requestCache.mutate('home-row', unlockItems);
+      requestCache.mutate('books', unlockItems);
+      requestCache.mutate('favorites', unlockItems);
+    } catch (err: any) {
+      Alert.alert('Desbloquear', err?.message ?? 'Não foi possível desbloquear o livro.');
+    } finally {
+      setUnlocking(false);
+    }
+  }, [authedFetch, lang, summary?.bookId, t, updateSessionUser, requestCache, title, author, session?.user?.unlockedCount]);
 
   const loadReview = useCallback(
     async (bookId: string) => {
@@ -578,6 +689,16 @@ export default function BookScreen() {
     [uiTransition],
   );
 
+  const resolvedSummaryText = useMemo(
+    () =>
+      unlockedSummary?.summary ??
+      summary?.summary ??
+      (lockedVisual
+        ? (lang.toLowerCase().startsWith('pt') ? 'Livro bloqueado' : 'Locked book')
+        : undefined),
+    [unlockedSummary?.summary, summary?.summary, lockedVisual, lang],
+  );
+
   return (
     <Animated.View style={{ flex: 1, opacity: contentOpacity }}>
       <Pressable
@@ -587,9 +708,50 @@ export default function BookScreen() {
       >
         <Text style={[styles.backButtonText, { color: theme.tint }]}>←</Text>
       </Pressable>
+      {lockedVisual && (
+        <Pressable
+          style={[
+            styles.unlockFloating,
+            {
+              top: insets.top + 12,
+              right: 16,
+              backgroundColor: '#d4af37',
+              shadowColor: '#d4af37',
+            },
+          ]}
+          onPress={handleUnlock}
+          disabled={unlocking}
+          hitSlop={8}
+        >
+          {unlocking ? (
+            <ActivityIndicator color="#111" />
+          ) : (
+            <Text style={styles.unlockFloatingText}>
+              {t('book.unlockCta') ?? 'Desbloquear'}
+            </Text>
+          )}
+        </Pressable>
+      )}
       <ScrollView contentContainerStyle={scrollContentStyle} keyboardShouldPersistTaps="handled">
         <View style={styles.coverWrapper}>
           <Image source={coverSource} style={styles.cover} resizeMode="cover" />
+          {lockedVisual && (
+            <View
+              style={[
+                styles.coverLockOverlay,
+                {
+                  backgroundColor: scheme === 'dark' ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.45)',
+                },
+              ]}
+              pointerEvents="none"
+            >
+              <Ionicons
+                name="lock-closed"
+                size={32}
+                color={scheme === 'dark' ? '#111827' : '#f8fafc'}
+              />
+            </View>
+          )}
         </View>
 
         <Animated.View style={{ opacity: detailsAnim, transform: [{ translateY: detailsTranslateY }] }}>
@@ -701,10 +863,37 @@ export default function BookScreen() {
             </View>
           )}
 
+          {lockedVisual && (
+            <View
+              style={[
+                styles.unlockCard,
+                {
+                  backgroundColor: theme.bookCard,
+                  borderColor: theme.detail ?? '#e5e5e5',
+                },
+              ]}
+            >
+              <Text style={[styles.unlockTitle, { color: theme.tint }]}>
+                {t('book.locked') ?? 'Livro bloqueado'}
+              </Text>
+              <Text style={[styles.unlockSubtitle, { color: theme.text }]}>
+                {t('book.unlockWithKey') ??
+                  'Use 1 chave para liberar o áudio e o resumo deste título.'}
+              </Text>
+              {unlockError ? (
+                <View style={[styles.unlockError, { backgroundColor: scheme === 'dark' ? 'rgba(248,113,113,0.12)' : '#fee2e2' }]}>
+                  <Text style={[styles.unlockErrorText, { color: '#b91c1c' }]}>
+                    {unlockError}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          )}
+
         <BookSummarySection
           loading={loading}
           error={error}
-          summaryText={summary?.summary}
+          summaryText={resolvedSummaryText}
           progress={audioReady ? progressRatio : 0}
           backgroundColor={theme.bookCard}
           expanded={summaryExpanded}
@@ -713,7 +902,7 @@ export default function BookScreen() {
         </Animated.View>
       </ScrollView>
 
-      {summaryExpanded && summary?.summary && (
+      {summaryExpanded && (summary?.summary || lockedVisual) && (
         <View
           style={[
             styles.summaryOverlay,
@@ -738,7 +927,7 @@ export default function BookScreen() {
           >
             <Text style={[styles.overlayTitle, { color: theme.tint }]}>Resumo</Text>
             <HighlightedSummary
-              text={summary.summary}
+              text={resolvedSummaryText ?? ''}
               progress={audioReady ? progressRatio : 0}
               variant="expanded"
             />
@@ -790,6 +979,7 @@ export default function BookScreen() {
           audioReady={audioReady}
           audioLoading={audioLoading}
           audioError={audioErr}
+          locked={lockedVisual}
           isPlaying={isPlaying}
           onTogglePlay={handleTogglePlay}
           onSeek={handleSeek}
@@ -804,6 +994,62 @@ export default function BookScreen() {
           onSelectRate={setPlaybackRate}
         />
       </Animated.View>
+
+      {noKeysVisible && (
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFillObject,
+            styles.noKeysOverlay,
+            { opacity: noKeysAnim, backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.35)' },
+          ]}
+        >
+          <Animated.View
+            style={[
+              styles.noKeysToast,
+              {
+                backgroundColor: theme.bookCard,
+                borderColor: '#d4af37',
+                shadowColor: theme.text,
+                opacity: noKeysAnim,
+                transform: [
+                  {
+                    translateY: noKeysAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [30, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Text style={[styles.noKeysTitle, { color: theme.tint }]}>
+              {t('book.noKeysTitle') ?? 'Sem chaves suficientes'}
+            </Text>
+            <Text style={[styles.noKeysBody, { color: theme.text }]}>
+              {t('book.noKeysMessage') ??
+                'Você não tem chaves suficientes para desbloquear este livro.'}
+            </Text>
+            <View style={styles.noKeysDivider} />
+            <Pressable
+              style={[
+                styles.noKeysButton,
+                { backgroundColor: theme.tint },
+              ]}
+              onPress={() => {
+                Animated.timing(noKeysAnim, {
+                  toValue: 0,
+                  duration: 180,
+                  useNativeDriver: true,
+                }).start(() => setNoKeysVisible(false));
+              }}
+            >
+              <Text style={[styles.noKeysButtonText, { color: theme.background }]}>
+                {t('common.confirm') ?? 'OK'}
+              </Text>
+            </Pressable>
+          </Animated.View>
+        </Animated.View>
+      )}
     </Animated.View>
   );
 }
@@ -919,6 +1165,12 @@ const styles = StyleSheet.create({
     paddingEnd: 0,
     marginBottom: 16,
   },
+  coverLockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
   fauxTabBar: {
     position: 'absolute',
     left: 0,
@@ -973,5 +1225,97 @@ const styles = StyleSheet.create({
   genreChipText: {
     fontSize: 13,
     fontWeight: '600',
+  },
+  unlockCard: {
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 16,
+    gap: 10,
+  },
+  unlockTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  unlockSubtitle: {
+    fontSize: 13,
+    opacity: 0.8,
+  },
+  unlockError: {
+    borderRadius: 8,
+    padding: 10,
+  },
+  unlockErrorText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  unlockFloating: {
+    position: 'absolute',
+    right: 16,
+    zIndex: 60,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#b8860b',
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
+  },
+  unlockFloatingText: {
+    color: '#0f172a',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  noKeysToast: {
+    position: 'absolute',
+    maxWidth: '88%',
+    alignSelf: 'center',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
+    zIndex: 70,
+    gap: 8,
+    alignItems: 'center',
+    top: '40%',
+  },
+  noKeysTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  noKeysBody: {
+    fontSize: 13,
+    opacity: 0.9,
+  },
+  noKeysButton: {
+    alignSelf: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginTop: 10,
+    backgroundColor: '#2563eb',
+  },
+  noKeysButtonText: {
+    color: '#f8fafc',
+    fontWeight: '800',
+  },
+  noKeysDivider: {
+    width: '75%',
+    height: StyleSheet.hairlineWidth * 2,
+    backgroundColor: '#d4af37',
+    marginTop: 8,
+    marginBottom: 4,
+    borderRadius: 999,
+  },
+  noKeysOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

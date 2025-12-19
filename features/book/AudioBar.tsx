@@ -5,6 +5,7 @@ import { Text, View } from '@/components/shared/Themed';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
 import { useTranslation } from '@/i18n/LanguageContext';
+import { Ionicons } from '@expo/vector-icons';
 
 export type AudioBarProps = {
   bottomInset: number;
@@ -13,6 +14,7 @@ export type AudioBarProps = {
   audioReady: boolean;
   audioLoading: boolean;
   audioError?: string | null;
+  locked?: boolean;
   isPlaying: boolean;
   onTogglePlay: () => void;
   onSeek: (value: number) => void;
@@ -36,6 +38,7 @@ export function AudioBar({
   audioReady,
   audioLoading,
   audioError,
+  locked = false,
   isPlaying,
   onTogglePlay,
   onSeek,
@@ -102,10 +105,30 @@ export function AudioBar({
           },
         ]}
       >
+      {locked && (
+        <View
+          style={[
+            styles.lockOverlay,
+            {
+              backgroundColor: isDark ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.45)',
+            },
+          ]}
+          pointerEvents="none"
+        >
+          <Ionicons
+            name="lock-closed"
+            size={28}
+            color={isDark ? '#111827' : '#f8fafc'}
+          />
+        </View>
+      )}
       <Pressable
         onPress={onTogglePlay}
-        disabled={!audioReady || !!audioError || audioLoading}
-        style={[styles.playBtn, (!audioReady || audioLoading) && styles.disabled]}
+        disabled={!audioReady || !!audioError || audioLoading || locked}
+        style={[
+          styles.playBtn,
+          (!audioReady || audioLoading || locked) && styles.disabled,
+        ]}
       >
         <Text style={styles.playIcon}>{isPlaying ? '⏸' : '▶️'}</Text>
       </Pressable>
@@ -201,6 +224,13 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       elevation: 4,
       zIndex: 20,
       height: AUDIO_BAR_HEIGHT + 10,
+    },
+    lockOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(0,0,0,0.35)',
+      borderRadius: 14,
     },
     playBtn: {
       width: 42,

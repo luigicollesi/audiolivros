@@ -33,6 +33,7 @@ class RequestCache {
   private cache = new Map<string, CacheEntry<any>>();
   private pendingRequests = new Map<string, Promise<any>>();
   private timeouts = new Map<string, any>();
+  private listeners = new Set<(key: string) => void>();
 
   async get<T>(
     key: string,
@@ -98,6 +99,7 @@ class RequestCache {
           isLoading: false,
           error: null,
         });
+        this.notify(key);
 
         // Agenda limpeza
         this.scheduleCleanup(key, options.cacheTime);
@@ -126,6 +128,7 @@ class RequestCache {
       isLoading: false,
       error: lastError?.message || 'Unknown error',
     });
+    this.notify(key);
 
     this.pendingRequests.delete(key);
     throw lastError;
@@ -195,6 +198,29 @@ class RequestCache {
       // Ignora erros no prefetch
     });
   }
+
+  mutate(pattern: string, updater: (data: any) => any): void {
+    this.cache.forEach((entry, key) => {
+      if (!key.includes(pattern)) return;
+      const nextData = updater(entry.data);
+      if (nextData === entry.data) return;
+      this.cache.set(key, {
+        ...entry,
+        data: nextData,
+        timestamp: Date.now(),
+      });
+      this.notify(key);
+    });
+  }
+
+  addListener(fn: (key: string) => void) {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
+  }
+
+  private notify(key: string) {
+    this.listeners.forEach((fn) => fn(key));
+  }
 }
 
 // Instância global do cache
@@ -256,6 +282,21 @@ export function useCachedRequest<T>(
           error: error.message 
         }));
       });
+
+    const unsubscribe = cache.addListener((changedKey) => {
+      if (changedKey !== stableKey) return;
+      const next = cache.getCached<T>(changedKey);
+      if (!next) return;
+      setState({
+        data: next.data,
+        isLoading: next.isLoading,
+        error: next.error,
+      });
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, [stableKey, stableFetcher, cache, stableOptions]);
 
   const refetch = useCallback(() => {

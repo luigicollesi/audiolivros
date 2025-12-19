@@ -113,6 +113,7 @@ export function useOptimizedBooks(
         typeof item.listeningProgressPercent === 'number'
           ? item.listeningProgressPercent
           : null,
+      locked: item?.locked === true || item?.locked === 'true',
     }));
 
     return {
