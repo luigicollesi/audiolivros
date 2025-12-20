@@ -65,6 +65,7 @@ type UseListeningProgressOptions = {
   authedFetch: AuthedFetch;
   fetchJSON: FetchJSON;
   initialProgressHint?: ListeningProgressRow | null;
+  onMissionComplete?: (info: { keysAwarded: number }) => void;
 };
 
 export function useListeningProgress({
@@ -73,8 +74,9 @@ export function useListeningProgress({
   authedFetch,
   fetchJSON,
   initialProgressHint,
+  onMissionComplete,
 }: UseListeningProgressOptions) {
-  const { markFinishedDirty } = useAuth();
+  const { markFinishedDirty, updateSessionUser, session } = useAuth();
   const [initialPosition, setInitialPosition] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(() => Boolean(bookId) || Boolean(audioPath));
   const [resolvedKey, setResolvedKey] = useState<string | null>(null);
@@ -333,6 +335,17 @@ export function useListeningProgress({
 
           clearLocalProgressCache({ bookId });
           
+          if (data?.conMiss) {
+            const currentKeys = session?.user?.keys ?? 0;
+            const currentDaysRead = session?.user?.daysRead ?? 0;
+            updateSessionUser({
+              keys: currentKeys + 1,
+              mission: true,
+              daysRead: currentDaysRead + 1,
+            });
+            onMissionComplete?.({ keysAwarded: 1 });
+          }
+          
           audioLogger.info('Livro marcado como concluído com sucesso', {
             bookId,
             reason,
@@ -353,7 +366,7 @@ export function useListeningProgress({
         }
       })();
     },
-    [audioFileName, authedFetch, bookId, clearLocalProgressCache, markFinishedDirty],
+    [audioFileName, authedFetch, bookId, clearLocalProgressCache, markFinishedDirty, updateSessionUser, onMissionComplete, session?.user?.keys],
   );
 
   const postUpdate = useCallback(

@@ -86,6 +86,15 @@ export default function BookScreen() {
     authedFetch,
     fetchJSON,
     initialProgressHint: summary?.listeningProgress ?? null,
+    onMissionComplete: () => {
+      const newKeys = (session?.user?.keys ?? 0) + 1;
+      const newDaysRead = (session?.user?.daysRead ?? 0) + 1;
+      updateSessionUser({ keys: newKeys, mission: true, daysRead: newDaysRead });
+      showToast(
+        t('book.missionComplete') ?? 'Missão diária concluída! Você ganhou 1 chave.',
+        t('book.missionTitle') ?? 'Missão diária',
+      );
+    },
   });
   const {
     initialPosition: savedPosition,
@@ -102,8 +111,10 @@ export default function BookScreen() {
   const [unlocking, setUnlocking] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
   const [unlockedSummary, setUnlockedSummary] = useState<{ summary: string | null; audio_url: string | null } | null>(null);
-  const [noKeysVisible, setNoKeysVisible] = useState(false);
-  const noKeysAnim = useRef(new Animated.Value(0)).current;
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastTitle, setToastTitle] = useState<string | null>(null);
+  const toastAnim = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const detailsAnim = useRef(new Animated.Value(0)).current;
   const uiTransition = useRef(new Animated.Value(0)).current;
@@ -209,6 +220,21 @@ export default function BookScreen() {
     [router],
   );
 
+  const showToast = useCallback(
+    (message: string, title?: string | null) => {
+      setToastMessage(message);
+      setToastTitle(title ?? null);
+      setToastVisible(true);
+      toastAnim.setValue(0);
+      Animated.timing(toastAnim, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }).start();
+    },
+    [toastAnim],
+  );
+
   useEffect(() => {
     if (summary && typeof summary.favorite === 'boolean') {
       setFavorite(summary.favorite);
@@ -260,6 +286,15 @@ export default function BookScreen() {
 
   const handleUnlock = useCallback(async () => {
     if (!summary?.bookId) return;
+    const keyBalance = session?.user?.keys ?? 0;
+    if (keyBalance <= 0) {
+      showToast(
+        t('book.noKeysMessage') ??
+          'Você não tem chaves suficientes para desbloquear este livro.',
+        t('book.noKeysTitle') ?? 'Sem chaves suficientes',
+      );
+      return;
+    }
     setUnlockError(null);
     setUnlocking(true);
     try {
@@ -277,13 +312,11 @@ export default function BookScreen() {
           t('book.noKeys') ??
             'Você não tem chaves disponíveis para desbloquear este livro.',
         );
-        setNoKeysVisible(true);
-        noKeysAnim.setValue(0);
-        Animated.timing(noKeysAnim, {
-          toValue: 1,
-          duration: 220,
-          useNativeDriver: true,
-        }).start();
+        showToast(
+          t('book.noKeysMessage') ??
+            'Você não tem chaves suficientes para desbloquear este livro.',
+          t('book.noKeysTitle') ?? 'Sem chaves suficientes',
+        );
         return;
       }
 
@@ -294,7 +327,7 @@ export default function BookScreen() {
       setUnlockedSummary(nextSummary);
       setLockedVisual(false);
       setUnlockError(null);
-      setNoKeysVisible(false);
+      setToastVisible(false);
       if (typeof data?.remainingKeys === 'number') {
         updateSessionUser({ keys: data.remainingKeys });
       }
@@ -334,11 +367,11 @@ export default function BookScreen() {
       requestCache.mutate('books', unlockItems);
       requestCache.mutate('favorites', unlockItems);
     } catch (err: any) {
-      Alert.alert('Desbloquear', err?.message ?? 'Não foi possível desbloquear o livro.');
+      showToast(err?.message ?? 'Não foi possível desbloquear o livro.');
     } finally {
       setUnlocking(false);
     }
-  }, [authedFetch, lang, summary?.bookId, t, updateSessionUser, requestCache, title, author, session?.user?.unlockedCount]);
+  }, [authedFetch, lang, summary?.bookId, t, updateSessionUser, requestCache, title, author, session?.user?.unlockedCount, showToast]);
 
   const loadReview = useCallback(
     async (bookId: string) => {
@@ -368,6 +401,14 @@ export default function BookScreen() {
     async (value: number) => {
       if (!summary?.bookId) return;
       if (reviewSubmitting) return;
+      if (progressRatio <= 0) {
+        showToast(
+          t('book.rateAfterListening') ??
+            'Finalize ou ouça parte do livro antes de avaliá-lo.',
+          t('book.ratingBlockedTitle') ?? 'Avaliação indisponível',
+        );
+        return;
+      }
       setReviewSubmitting(true);
       try {
         const res = await authedFetch(`${BASE_URL}/reviews`, {
@@ -382,12 +423,17 @@ export default function BookScreen() {
         setReviewRating(value);
         Alert.alert('Avaliação', 'Sua avaliação foi registrada.');
       } catch (err: any) {
-        Alert.alert('Avaliação', err?.message ?? 'Não foi possível registrar sua avaliação.');
+        showToast(
+          err?.message ??
+            (t('book.rateAfterListening') ??
+              'Finalize ou ouça parte do livro antes de avaliá-lo.'),
+          t('book.ratingBlockedTitle') ?? 'Avaliação indisponível',
+        );
       } finally {
         setReviewSubmitting(false);
       }
     },
-    [authedFetch, reviewSubmitting, summary?.bookId],
+    [authedFetch, reviewSubmitting, summary?.bookId, progressRatio, t, showToast],
   );
 
   const handleToggleFavorite = useCallback(async () => {
@@ -816,12 +862,12 @@ export default function BookScreen() {
                   />
                 )}
               </View>
-              {reviewRating != null && (
+              {reviewRating != null ? (
                 <Text style={[styles.ratingHint, { color: theme.tint }]}>
                   {t('book.yourRatingValue', { rating: reviewRating }) ??
                     `Avaliação: ${reviewRating}/5`}
                 </Text>
-              )}
+              ) : null}
             </View>
           ) : null}
 
@@ -880,6 +926,12 @@ export default function BookScreen() {
                 {t('book.unlockWithKey') ??
                   'Use 1 chave para liberar o áudio e o resumo deste título.'}
               </Text>
+              {(session?.user?.keys ?? 0) <= 0 && (
+                <Text style={[styles.unlockWarning, { color: theme.text }]}>
+                  {t('book.noKeysMessage') ??
+                    'Você não tem chaves suficientes para desbloquear este livro.'}
+                </Text>
+              )}
               {unlockError ? (
                 <View style={[styles.unlockError, { backgroundColor: scheme === 'dark' ? 'rgba(248,113,113,0.12)' : '#fee2e2' }]}>
                   <Text style={[styles.unlockErrorText, { color: '#b91c1c' }]}>
@@ -995,25 +1047,25 @@ export default function BookScreen() {
         />
       </Animated.View>
 
-      {noKeysVisible && (
+      {toastVisible && (
         <Animated.View
           style={[
             StyleSheet.absoluteFillObject,
-            styles.noKeysOverlay,
-            { opacity: noKeysAnim, backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.35)' },
+            styles.toastOverlay,
+            { opacity: toastAnim, backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.35)' },
           ]}
         >
           <Animated.View
             style={[
-              styles.noKeysToast,
+              styles.toastBox,
               {
                 backgroundColor: theme.bookCard,
                 borderColor: '#d4af37',
                 shadowColor: theme.text,
-                opacity: noKeysAnim,
+                opacity: toastAnim,
                 transform: [
                   {
-                    translateY: noKeysAnim.interpolate({
+                    translateY: toastAnim.interpolate({
                       inputRange: [0, 1],
                       outputRange: [30, 0],
                     }),
@@ -1023,27 +1075,31 @@ export default function BookScreen() {
             ]}
           >
             <Text style={[styles.noKeysTitle, { color: theme.tint }]}>
-              {t('book.noKeysTitle') ?? 'Sem chaves suficientes'}
+              {toastTitle ?? t('book.noKeysTitle') ?? 'Sem chaves suficientes'}
             </Text>
             <Text style={[styles.noKeysBody, { color: theme.text }]}>
-              {t('book.noKeysMessage') ??
+              {toastMessage ??
+                t('book.noKeysMessage') ??
                 'Você não tem chaves suficientes para desbloquear este livro.'}
             </Text>
-            <View style={styles.noKeysDivider} />
+            <View style={styles.toastDivider} />
             <Pressable
               style={[
-                styles.noKeysButton,
+                styles.toastButton,
                 { backgroundColor: theme.tint },
               ]}
               onPress={() => {
-                Animated.timing(noKeysAnim, {
+                Animated.timing(toastAnim, {
                   toValue: 0,
                   duration: 180,
                   useNativeDriver: true,
-                }).start(() => setNoKeysVisible(false));
+                }).start(() => {
+                  setToastVisible(false);
+                  setToastMessage(null);
+                });
               }}
             >
-              <Text style={[styles.noKeysButtonText, { color: theme.background }]}>
+              <Text style={[styles.toastButtonText, { color: theme.background }]}>
                 {t('common.confirm') ?? 'OK'}
               </Text>
             </Pressable>
@@ -1126,6 +1182,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    backgroundColor: 'transparent',
   },
   ratingStar: {
     width: 40,
@@ -1215,6 +1272,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    backgroundColor: 'transparent',
   },
   genreChip: {
     borderRadius: 999,
@@ -1240,6 +1298,11 @@ const styles = StyleSheet.create({
   unlockSubtitle: {
     fontSize: 13,
     opacity: 0.8,
+  },
+  unlockWarning: {
+    fontSize: 13,
+    fontWeight: '700',
+    opacity: 0.9,
   },
   unlockError: {
     borderRadius: 8,
@@ -1268,7 +1331,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
   },
-  noKeysToast: {
+  toastBox: {
     position: 'absolute',
     maxWidth: '88%',
     alignSelf: 'center',
@@ -1293,19 +1356,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     opacity: 0.9,
   },
-  noKeysButton: {
-    alignSelf: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 12,
-    marginTop: 10,
-    backgroundColor: '#2563eb',
-  },
-  noKeysButtonText: {
-    color: '#f8fafc',
-    fontWeight: '800',
-  },
-  noKeysDivider: {
+  toastDivider: {
     width: '75%',
     height: StyleSheet.hairlineWidth * 2,
     backgroundColor: '#d4af37',
@@ -1313,9 +1364,21 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     borderRadius: 999,
   },
-  noKeysOverlay: {
+  toastOverlay: {
     backgroundColor: 'rgba(0,0,0,0.35)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  toastButton: {
+    alignSelf: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginTop: 10,
+    backgroundColor: '#2563eb',
+  },
+  toastButtonText: {
+    color: '#f8fafc',
+    fontWeight: '800',
   },
 });

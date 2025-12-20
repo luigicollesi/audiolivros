@@ -116,6 +116,10 @@ const messages: Record<LanguageCode, TranslationDictionary> = {
     'book.noCover': 'Sem capa',
     'book.yourRating': 'Sua avaliação',
     'book.yourRatingValue': 'Avaliação: {rating}/5',
+    'book.rateAfterListening': 'Finalize ou ouça parte do livro antes de avaliá-lo.',
+    'book.ratingBlockedTitle': 'Avaliação indisponível',
+    'book.missionComplete': 'Missão diária concluída! Você ganhou 1 chave.',
+    'book.missionTitle': 'Missão diária',
     'book.locked': 'Livro bloqueado',
     'book.unlockWithKey': 'Use 1 chave para liberar o áudio e o resumo deste título.',
     'book.unlockCta': 'Desbloquear',
@@ -159,6 +163,10 @@ const messages: Record<LanguageCode, TranslationDictionary> = {
     'profile.keysRewardOne': 'Você recebeu {count} chave 🔑',
     'profile.keysRewardOther': 'Você recebeu {count} chaves 🔑',
     'profile.streakTitle': 'Dias logados consecutivos',
+    'profile.missionPendingTitle': 'Missão diária',
+    'profile.missionPendingSubtitle': 'Leia ou ouça um novo resumo hoje para ganhar +1 chave.',
+    'profile.missionDoneTitle': 'Missão concluída',
+    'profile.missionDoneSubtitle': 'Você já completou a missão diária de leitura.',
     'profile.close': 'Fechar',
 
     // Auth (multi-idioma)
@@ -316,6 +324,10 @@ const messages: Record<LanguageCode, TranslationDictionary> = {
     'book.noCover': 'No cover',
     'book.yourRating': 'Your rating',
     'book.yourRatingValue': 'Rating: {rating}/5',
+    'book.rateAfterListening': 'Finish or listen a bit before rating this book.',
+    'book.ratingBlockedTitle': 'Rating unavailable',
+    'book.missionComplete': 'Daily mission completed! You earned 1 key.',
+    'book.missionTitle': 'Daily mission',
     'book.locked': 'Locked book',
     'book.unlockWithKey': 'Use 1 key to unlock audio and summary for this title.',
     'book.unlockCta': 'Unlock',
@@ -359,6 +371,10 @@ const messages: Record<LanguageCode, TranslationDictionary> = {
     'profile.keysRewardOne': 'You received {count} key 🔑',
     'profile.keysRewardOther': 'You received {count} keys 🔑',
     'profile.streakTitle': 'Consecutive logged days',
+    'profile.missionPendingTitle': 'Daily mission',
+    'profile.missionPendingSubtitle': 'Read or listen to a new summary today to earn +1 key.',
+    'profile.missionDoneTitle': 'Mission completed',
+    'profile.missionDoneSubtitle': 'You have already completed today’s reading mission.',
     'profile.close': 'Close',
 
     // Auth (multi-language)

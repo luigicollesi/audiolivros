@@ -130,7 +130,11 @@ export function AudioBar({
           (!audioReady || audioLoading || locked) && styles.disabled,
         ]}
       >
-        <Text style={styles.playIcon}>{isPlaying ? '⏸' : '▶️'}</Text>
+        <Ionicons
+          name={isPlaying ? 'pause' : 'play'}
+          size={26}
+          color={isDark ? '#f8fafc' : '#0f172a'}
+        />
       </Pressable>
 
       <View style={styles.progressWrap}>
@@ -183,14 +187,16 @@ export function AudioBar({
                 disabled={!audioReady || audioLoading}
                 style={[styles.smallBtn, (!audioReady || audioLoading) && styles.disabled]}
               >
-                <Text style={styles.smallBtnText}>⏪ 10s</Text>
+                <Ionicons name="play-back" size={22} color={isDark ? '#f8fafc' : '#0f172a'} />
+                <Text style={styles.smallBtnText}>10s</Text>
               </Pressable>
               <Pressable
                 onPress={onSkipForward}
                 disabled={!audioReady || audioLoading}
                 style={[styles.smallBtn, (!audioReady || audioLoading) && styles.disabled]}
               >
-                <Text style={styles.smallBtnText}>10s ⏩</Text>
+                <Text style={styles.smallBtnText}>10s</Text>
+                <Ionicons name="play-forward" size={22} color={isDark ? '#f8fafc' : '#0f172a'} />
               </Pressable>
             </View>
           </RNView>
@@ -244,12 +250,12 @@ const createStyles = (colors: Palette, isDark: boolean) =>
     },
     playIcon: { fontSize: 18, color: colors.text },
     disabled: { opacity: 0.6 },
-    progressWrap: { flex: 1, gap: 8 },
+    progressWrap: { flex: 1, gap: 8, backgroundColor: 'transparent' },
     progressSection: { gap: 6 },
     slider: { width: '100%', height: 30 },
-    timerRow: { flexDirection: 'row', justifyContent: 'space-between' },
+    timerRow: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: 'transparent' },
     timer: { fontSize: 12, color: colors.text, opacity: 0.8 },
-    meta: { fontSize: 14, color: colors.text, opacity: 0.8 },
+    meta: { fontSize: 14, color: colors.text, opacity: 0.8, backgroundColor: 'transparent' },
     error: { color: 'tomato' },
     loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     controlsRow: {
@@ -258,6 +264,7 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       alignItems: 'center',
       marginTop: 4,
       gap: 8,
+      backgroundColor: 'transparent',
     },
     rateWrapper: {
       position: 'relative',
@@ -296,14 +303,17 @@ const createStyles = (colors: Palette, isDark: boolean) =>
       zIndex: 30,
     },
     smallBtn: {
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 10,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border ?? colors.detail,
-      backgroundColor: colors.secondary,
+      backgroundColor: colors.bookCard,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
     },
-    smallBtnText: { fontSize: 12, fontWeight: '600', color: colors.background },
+    smallBtnText: { fontSize: 12, fontWeight: '700', color: colors.text },
     rateOverlay: {
       backgroundColor: 'transparent',
     },

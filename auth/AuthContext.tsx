@@ -22,12 +22,15 @@ type User = {
   id?: string;
   keys?: number;
   days?: number;
+  daysRead?: number;
   earnedKeys?: number;
   booksRead?: number;
   libraryCount?: number;
   favoritesCount?: number;
   finishedCount?: number;
   unlockedCount?: number;
+  mission?: boolean;
+  dateRead?: string | null;
   email: string;
   name: string | null;
   phone?: string | null;

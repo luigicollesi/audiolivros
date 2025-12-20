@@ -73,8 +73,9 @@ const createStyles = (colors: typeof Colors.light, isDark: boolean) =>
       alignItems: 'flex-start',
       justifyContent: 'space-between',
       gap: 12,
+      backgroundColor: 'transparent',
     },
-    titleWrapper: { flex: 1 },
+    titleWrapper: { flex: 1, backgroundColor: 'transparent' },
     title: { fontSize: 20, fontWeight: '700', color: colors.tint, letterSpacing: 0.2, flexWrap: 'wrap' },
     meta: { fontSize: 14, opacity: 0.85, color: colors.text },
     favoriteBtn: {

@@ -75,7 +75,14 @@ export function useBookAudio({ audioPath, token, authedFetch, ready = true }: Us
       setAudioErr(null);
       setAudioLoading(true);
 
-      await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false });
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        interruptionModeAndroid: 'duckOthers',
+        interruptionMode: 'duckOthers',
+      });
 
       const slug = encodeURIComponent(audioPath);
       const candidate = `${BASE_URL}/audios/luiz/${slug}.mp3`;

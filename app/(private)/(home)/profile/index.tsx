@@ -21,6 +21,7 @@ import { useAuthedFetch } from '@/auth/useAuthedFetch';
 import { BASE_URL } from '@/constants/API';
 import { useTranslation } from '@/i18n/LanguageContext';
 import { formatLanguageLabel, normalizeLanguage } from '@/i18n/translations';
+import { setStatusBarBackgroundColor } from 'expo-status-bar';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -47,6 +48,8 @@ export default function ProfileScreen() {
 
   const user = session?.user;
   const streakDays = (user?.days as number | undefined) ?? (user as any)?.streakDays ?? 0;
+  const daysRead = (user?.daysRead as number | undefined) ?? (user as any)?.daysRead ?? 0;
+  const mission = Boolean((user as any)?.mission);
   const booksRead = (user as any)?.booksRead ?? 0;
   const libraryCount = (user as any)?.libraryCount ?? 0;
   const unlockedCount = (user as any)?.unlockedCount ?? 0;
@@ -198,13 +201,34 @@ export default function ProfileScreen() {
       />
       <ScrollView contentContainerStyle={styles.screen} showsVerticalScrollIndicator={false}>
         <View style={styles.topRow}>
-          <View>
+          <View style={{ backgroundColor: 'transparent' }}>
             <Text style={styles.greetingLabel}>{t('profile.title')}</Text>
             <Text style={styles.title}>{name}</Text>
           </View>
           <View style={styles.streakPill}>
             <MaterialCommunityIcons name="fire" size={18} color="#ff8a00" />
-            <Text style={styles.streakText}>{streakDays}d</Text>
+            <Text style={styles.streakText}>{daysRead}d</Text>
+          </View>
+        </View>
+
+        <View style={styles.missionCard}>
+          <View style={styles.missionIcon}>
+            {mission ? (
+              <Ionicons name="checkmark-done-circle" size={22} color="#d4af37" />
+            ) : (
+              <MaterialCommunityIcons name="file-document-outline" size={22} color="#d4af37" />
+            )}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.missionTitle}>
+              {mission ? t('profile.missionDoneTitle') ?? 'Missão concluída' : t('profile.missionPendingTitle') ?? 'Missão diária'}
+            </Text>
+            <Text style={styles.missionSubtitle}>
+              {mission
+                ? t('profile.missionDoneSubtitle') ?? 'Você já completou a missão diária de leitura.'
+                : t('profile.missionPendingSubtitle') ??
+                  'Leia ou ouça um novo resumo hoje para ganhar +1 chave.'}
+            </Text>
           </View>
         </View>
 
@@ -448,6 +472,7 @@ const createStyles = (colors: Palette, isDark: boolean) => {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+      backgroundColor: 'transparent',
     },
     greetingLabel: {
       fontSize: 13,
@@ -500,6 +525,7 @@ const createStyles = (colors: Palette, isDark: boolean) => {
       flex: 1,
       gap: 10,
       justifyContent: 'space-between',
+      backgroundColor: 'transparent',
     },
     heroBadge: {
       flexDirection: 'row',
@@ -559,7 +585,7 @@ const createStyles = (colors: Palette, isDark: boolean) => {
       paddingHorizontal: 6,
       borderRadius: 12,
     },
-    infoColumn: { flex: 1, gap: 2 },
+    infoColumn: { flex: 1, gap: 2, backgroundColor: 'transparent' },
     infoLabel: {
       fontSize: 12,
       textTransform: 'uppercase',
@@ -628,10 +654,12 @@ const createStyles = (colors: Palette, isDark: boolean) => {
     actionsRow: {
       gap: 12,
       marginTop: 8,
+      backgroundColor: 'transparent',
     },
     actionsRowInner: {
       flexDirection: 'row',
       gap: 12,
+      backgroundColor: 'transparent',
     },
     primaryButton: {
       flexDirection: 'row',
@@ -775,6 +803,27 @@ const createStyles = (colors: Palette, isDark: boolean) => {
       minWidth: 180,
     },
     toastText: { color: '#fff', textAlign: 'center', fontWeight: '700', opacity: 0.7 },
+    missionCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc',
+      borderRadius: 14,
+      padding: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.detail,
+      marginBottom: 12,
+    },
+    missionIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: isDark ? 'rgba(212,175,55,0.12)' : 'rgba(212,175,55,0.16)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    missionTitle: { fontSize: 15, fontWeight: '800', color: colors.text },
+    missionSubtitle: { fontSize: 13, color: colors.text, opacity: 0.8 },
   });
 };
 
@@ -782,22 +831,20 @@ type StreakNode = { day: number; reward: number; active: boolean };
 
 function buildStreakNodes(daysRaw: number): StreakNode[] {
   const days = Math.max(1, Math.floor(daysRaw || 0));
-  if (days <= 3) {
-    const base = [1, 2, 3, 4, 5];
-    return base.map((day, idx) => ({
-      day,
-      reward: Math.min(day, 10),
-      active: idx < days,
-    }));
-  }
-  const start = days - 2;
-  return Array.from({ length: 5 }, (_, i) => {
-    const day = start + i;
-    const capped = Math.min(day, 10);
-    return {
-      day,
-      reward: capped,
-      active: i < 3,
-    };
-  });
+  const windowStart = Math.max(1, days - 2);
+  const base = Array.from({ length: 5 }, (_, i) => windowStart + i);
+  return base.map((day) => ({
+    day,
+    reward: keysForDay(day),
+    active: day <= days,
+  }));
+}
+
+function keysForDay(day: number): number {
+  const d = Math.max(1, Math.floor(day || 1));
+  if (d === 1) return 1;
+  if (d <= 3) return 2;
+  if (d <= 6) return 3;
+  if (d <= 10) return 4;
+  return 5;
 }
