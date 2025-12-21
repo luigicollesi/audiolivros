@@ -27,6 +27,7 @@ import { booksLogger } from '@/utils/logger';
 import { useTranslation } from '@/i18n/LanguageContext';
 import { normalizeLanguage } from '@/i18n/translations';
 import { useOptimizedBooks } from '@/hooks/useOptimizedBooks';
+import { useSoundFx } from '@/features/sound/SoundProvider';
 import type { HomeHeaderStrings, RowRenderItem, ShelfDescriptor } from '@/types/home';
 
 import {
@@ -66,6 +67,7 @@ export default function HomeScreen() {
   const actionTextColor = isDark ? palette.background : '#FFFFFF';
   const placeholderColor = isDark ? '#9ca3af' : '#6b7280';
   const { language: baseLanguage, t } = useTranslation();
+  const { playTransition1, playTransition2, playClick } = useSoundFx();
 
   const incomingGenre = useMemo(() => {
     const pickFirst = (value?: string | string[]) =>
@@ -632,6 +634,7 @@ export default function HomeScreen() {
   }, [filtersActive, refetchFilteredPage, rowStateList]);
 
   const handleClearChipPress = useCallback(() => {
+    playClick();
     let cleared = false;
     if (searchActive) {
       clearSearch();
@@ -647,11 +650,12 @@ export default function HomeScreen() {
         clearedGenre: Boolean(selectedGenre),
       });
     }
-  }, [searchActive, selectedGenre, clearSearch, setSelectedGenre]);
+  }, [searchActive, selectedGenre, clearSearch, setSelectedGenre, playClick]);
 
   const handlePressBook = useCallback(
     (book: BookItem) => {
       if (overlayBook) return;
+      playTransition2();
       setOverlayBook(book);
       overlayAnim.setValue(0);
       if (overlayTimerRef.current) clearTimeout(overlayTimerRef.current);
@@ -681,7 +685,7 @@ export default function HomeScreen() {
         overlayAnim.setValue(0);
       }, 2400);
     },
-    [router, languageId, overlayBook, overlayAnim],
+    [router, languageId, overlayBook, overlayAnim, playTransition2, playClick],
   );
 
   const onFilteredMomentumEnd = useCallback(
@@ -694,6 +698,12 @@ export default function HomeScreen() {
       }
     },
     [screenWidth, currentPageIndex, filteredTriggerPrefetch],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      playTransition1();
+    }, [playTransition1]),
   );
 
   const handleShelvesMomentumEnd = useCallback(
@@ -733,19 +743,23 @@ export default function HomeScreen() {
         actionTextColor={actionTextColor}
         placeholderColor={placeholderColor}
         isDark={isDark}
-        keyboardVisible={keyboardVisible}
-        searchInputRef={searchInputRef}
-        searchInput={searchInput}
-        searchApplied={searchApplied}
-        hasClearChip={hasClearChip}
-        strings={headerStrings}
-        onLayout={handleHeaderLayout}
-        onChangeSearch={onChangeSearch}
-        onApplySearch={applySearch}
-        onClearChip={handleClearChipPress}
-        onDismissKeyboard={dismissKeyboard}
-        onOpenFilters={() => setShowGenreModal(true)}
-      />
+      keyboardVisible={keyboardVisible}
+      searchInputRef={searchInputRef}
+      searchInput={searchInput}
+      searchApplied={searchApplied}
+      hasClearChip={hasClearChip}
+      strings={headerStrings}
+      onLayout={handleHeaderLayout}
+      onChangeSearch={onChangeSearch}
+      onApplySearch={applySearch}
+      onClearChip={handleClearChipPress}
+      onDismissKeyboard={dismissKeyboard}
+      onOpenFilters={() => {
+        playClick();
+        setShowGenreModal(true);
+      }}
+      onClickSound={playClick}
+    />
     ),
     [
       accent,
@@ -982,7 +996,7 @@ const styles = StyleSheet.create({
   toastContainer: {
       backgroundColor: 'transparent',
       position: 'absolute',
-      opacity: 0.8,
+      opacity: 0.95,
       top: 0,
       bottom: 0,
       left: 0,

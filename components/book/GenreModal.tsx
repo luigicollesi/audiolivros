@@ -11,6 +11,7 @@ import Colors from '@/constants/Colors';
 import { Text, View } from '@/components/shared/Themed';
 import { GENRES, translateGenreLabel } from '@/constants/Genres';
 import { useTranslation } from '@/i18n/LanguageContext';
+import { useSoundFx } from '@/features/sound/SoundProvider';
 
 export type GenreOption = { id: number; name: string; slug: string };
 
@@ -34,6 +35,7 @@ function GenreModalBase({
   const scheme = useColorScheme() ?? 'light';
   const theme = Colors[scheme];
   const { t, language } = useTranslation();
+  const { playClick } = useSoundFx();
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -48,7 +50,11 @@ function GenreModalBase({
           {/* Botão limpar filtro (opcional) */}
           {allowClear && (
             <Pressable
-              onPress={() => { onSelect(null); onClose(); }}
+              onPress={() => {
+                playClick();
+                onSelect(null);
+                onClose();
+              }}
               style={[styles.clearBtn, { backgroundColor: theme.bookCard, borderColor: theme.detail }]}
             >
               <Text style={[styles.clearBtnText, { color: theme.tint }]}>{t('genre.clear')}</Text>
@@ -62,7 +68,11 @@ function GenreModalBase({
               const isSelected = selected?.id === item.id;
               return (
                 <Pressable
-                  onPress={() => { onSelect(item); onClose(); }}
+                  onPress={() => {
+                    playClick();
+                    onSelect(item);
+                    onClose();
+                  }}
                   style={[
                     styles.option,
                     {
@@ -92,7 +102,10 @@ function GenreModalBase({
           />
 
           <Pressable
-            onPress={onClose}
+            onPress={() => {
+              playClick();
+              onClose();
+            }}
             style={[styles.closeBtn, { backgroundColor: theme.secondary, borderColor: theme.detail }]}
           >
             <Text style={[styles.closeBtnText, { color: '#FFFFFF' }]}>{t('genre.close')}</Text>

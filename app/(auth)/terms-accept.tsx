@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
@@ -12,6 +12,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { authLogger } from '@/utils/logger';
 import { useTranslation } from '@/i18n/LanguageContext';
 import { getTimezoneInfo } from '@/utils/timezone';
+import ClickPressable from '@/components/shared/ClickPressable';
 
 const COUNTDOWN_SECONDS = 5;
 
@@ -175,7 +176,7 @@ export default function TermsAcceptanceScreen() {
             {t('auth.terms.missingToken')}
           </Text>
         )}
-        <Pressable
+        <ClickPressable
           onPress={handleAccept}
           disabled={!canAccept}
           style={[
@@ -193,11 +194,11 @@ export default function TermsAcceptanceScreen() {
                 : t('auth.terms.accept')}
             </Text>
             )}
-        </Pressable>
+        </ClickPressable>
 
-        <Pressable onPress={handleCancel} style={styles.secondaryButton}>
+        <ClickPressable onPress={handleCancel} style={styles.secondaryButton}>
           <Text style={styles.secondaryText}>{t('auth.terms.cancel')}</Text>
-        </Pressable>
+        </ClickPressable>
       </View>
     </SafeAreaView>
   );

@@ -2,7 +2,6 @@ import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -12,6 +11,7 @@ import { authLogger } from '@/utils/logger';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
 import { getTimezoneInfo } from '@/utils/timezone';
+import ClickPressable from '@/components/shared/ClickPressable';
 
 export type SessionPayload = {
   id?: string;
@@ -82,8 +82,8 @@ export function createMockProviderButton(config: ProviderStaticConfig) {
     const scheme = useColorScheme() ?? 'light';
     const palette = Colors[scheme];
     const buttonLabel = label ?? config.defaultLabel;
-    const buttonTextColor = palette.text;
-    const buttonBackground = Colors.dark.secondary;
+    const buttonTextColor = Colors.dark.background;
+    const buttonBackground = '#d4af37';
 
     const handlePress = useCallback(async () => {
       if (loading || disabled) return;
@@ -191,12 +191,12 @@ export function createMockProviderButton(config: ProviderStaticConfig) {
     ]);
 
     return (
-      <Pressable
+      <ClickPressable
         style={[
           styles.btn,
           {
             backgroundColor: buttonBackground,
-            borderColor: palette.detail,
+            borderColor: buttonBackground,
           },
           (disabled || loading) && styles.btnDisabled,
         ]}
@@ -208,7 +208,7 @@ export function createMockProviderButton(config: ProviderStaticConfig) {
           <Text style={[styles.label, { color: buttonTextColor }]}>{buttonLabel}</Text>
           {loading && <ActivityIndicator color={buttonTextColor} />}
         </View>
-      </Pressable>
+      </ClickPressable>
     );
   }
 

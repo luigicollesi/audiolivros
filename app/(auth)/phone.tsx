@@ -4,7 +4,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -21,6 +20,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
 import { useTranslation } from '@/i18n/LanguageContext';
 import { normalizeLanguage } from '@/i18n/translations';
+import ClickPressable from '@/components/shared/ClickPressable';
 
 const sanitizeDigits = (value: string, max: number) =>
   value.replace(/\D/g, '').slice(0, max);
@@ -199,7 +199,7 @@ export default function PhoneScreen() {
         {error && <Text style={styles.error}>{error}</Text>}
         {globalError && <Text style={styles.error}>{globalError}</Text>}
 
-        <Pressable
+        <ClickPressable
           style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
           onPress={handleSubmit}
           disabled={submitting}
@@ -209,7 +209,7 @@ export default function PhoneScreen() {
           ) : (
             <Text style={styles.submitBtnText}>{t('phone.submit')}</Text>
           )}
-        </Pressable>
+        </ClickPressable>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

@@ -10,6 +10,8 @@ type Props = {
   summaryText?: string | null;
   progress: number;
   backgroundColor: string;
+  accentColor: string;
+  textColor: string;
   expanded: boolean;
   onToggleExpanded: () => void;
 };
@@ -20,6 +22,8 @@ export function BookSummarySection({
   summaryText,
   progress,
   backgroundColor,
+  accentColor,
+  textColor,
   expanded,
   onToggleExpanded,
 }: Props) {
@@ -55,7 +59,9 @@ export function BookSummarySection({
         <HighlightedSummary
           text={summaryText}
           progress={progress}
-          variant={expanded ? 'expanded' : 'default'}
+          variant="default"
+          accentColor={accentColor}
+          textColor={textColor}
         />
       )}
       <Text style={styles.hint}>
@@ -73,7 +79,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   containerExpanded: {
-    minHeight: 240,
+    minHeight: 320,
+    paddingHorizontal: 10,
   },
   title: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
   meta: { fontSize: 14, opacity: 0.8 },

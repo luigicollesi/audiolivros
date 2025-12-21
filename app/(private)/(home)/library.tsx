@@ -11,6 +11,7 @@ import { favoritesLogger } from '@/utils/logger';
 import { useTranslation } from '@/i18n/LanguageContext';
 import { normalizeLanguage } from '@/i18n/translations';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { useSoundFx } from '@/features/sound/SoundProvider';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -37,6 +38,7 @@ export default function LibraryScreen() {
     acknowledgeFavorites,
   } = useAuth();
   const { scheduleRefresh } = useSmartRefresh();
+  const { playTransition1, playTransition2, playClick } = useSoundFx();
   const scheme = useColorScheme() ?? 'light';
   const palette = Colors[scheme];
   const { language: baseLanguage, t } = useTranslation();
@@ -215,6 +217,7 @@ export default function LibraryScreen() {
     useCallback(() => {
       // Smart session refresh - prevents duplicates
       const cleanup = scheduleRefresh();
+      playTransition1();
       
       favoritesLogger.debug('Library screen focused', {
         initialized: initializedRef.current,
@@ -237,7 +240,7 @@ export default function LibraryScreen() {
       }
 
       return cleanup;
-    }, [scheduleRefresh, triggerPrefetch, currentPageIndex, currentPageData]),
+    }, [scheduleRefresh, triggerPrefetch, currentPageIndex, currentPageData, playTransition1, favoritesDirty]),
   );
 
   useEffect(() => () => {
@@ -260,6 +263,7 @@ export default function LibraryScreen() {
   );
 
   const onRefresh = useCallback(async () => {
+    playClick();
     setRefreshing(true);
     try {
       favoritesLogger.debug('Refreshing favorites via pull-to-refresh');
@@ -268,11 +272,13 @@ export default function LibraryScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, [refetchCurrentPage]);
+  }, [refetchCurrentPage, playClick]);
 
   const handlePressBook = useCallback(
     (b: BookItem) => {
       if (overlayBook) return;
+      playTransition2();
+      playClick();
       favoritesLogger.debug('Abrindo detalhe de favorito', {
         title: b.title,
         author: b.author,
@@ -305,7 +311,7 @@ export default function LibraryScreen() {
         overlayAnim.setValue(0);
       }, 2400);
     },
-    [router, languageId, overlayBook, overlayAnim],
+    [router, languageId, overlayBook, overlayAnim, playTransition2, playClick],
   );
 
   const renderPage = useCallback(

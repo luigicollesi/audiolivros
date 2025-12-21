@@ -4,7 +4,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -19,6 +18,7 @@ import { BASE_URL } from '@/constants/API';
 import { useAuthedFetch } from '@/auth/useAuthedFetch';
 import { useAuth } from '@/auth/AuthContext';
 import { CodeVerificationView } from '@/components/auth/CodeVerificationView';
+import ClickPressable from '@/components/shared/ClickPressable';
 
 type PhoneStage = 'form' | 'code';
 
@@ -157,8 +157,10 @@ export default function PhoneUpdateScreen() {
         throw new Error(data?.message || 'Código inválido.');
       }
       await refreshSession();
-      Alert.alert('Telefone atualizado', 'Os dados foram sincronizados.');
-      router.back();
+      router.replace({
+        pathname: '/(private)/(home)/profile',
+        params: { phoneUpdated: '1' },
+      });
     } catch (err: any) {
       setCodeError(String(err?.message || err || 'Não foi possível confirmar o código.'));
     } finally {
@@ -225,7 +227,7 @@ export default function PhoneUpdateScreen() {
                 </View>
                 {formError && <Text style={styles.error}>{formError}</Text>}
                 {info && <Text style={styles.info}>{info}</Text>}
-                <Pressable
+                <ClickPressable
                   style={[styles.primaryButton, (loading || cooldown > 0) && styles.disabled]}
                   onPress={handleRequestCode}
                   disabled={loading || cooldown > 0}
@@ -237,7 +239,7 @@ export default function PhoneUpdateScreen() {
                       {cooldown > 0 ? `Reenviar em ${cooldown}s` : 'Enviar código'}
                     </Text>
                   )}
-                </Pressable>
+                </ClickPressable>
               </>
             ) : (
               <>
@@ -269,14 +271,14 @@ export default function PhoneUpdateScreen() {
             )}
           </View>
 
-          <Pressable
+          <ClickPressable
             style={styles.linkButton}
             onPress={() => {
               if (!loading) router.back();
             }}
           >
             <Text style={styles.linkText}>Voltar para o perfil</Text>
-          </Pressable>
+          </ClickPressable>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

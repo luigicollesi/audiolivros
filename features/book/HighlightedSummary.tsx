@@ -1,45 +1,78 @@
-import React from 'react';
-import { StyleSheet } from 'react-native';
+import React, { useMemo } from 'react';
+import { Animated, StyleSheet, TextStyle, View } from 'react-native';
 import { Text } from '@/components/shared/Themed';
 
 type Props = {
   text: string;
   progress: number; // 0..1
   variant?: 'default' | 'expanded';
+  accentColor?: string;
+  textColor?: string;
+  animatedStyle?: Animated.AnimatedProps<TextStyle>;
 };
 
-export function HighlightedSummary({ text, progress, variant = 'default' }: Props) {
+export function HighlightedSummary({
+  text,
+  progress,
+  variant = 'default',
+  accentColor = '#2563eb',
+  textColor,
+  animatedStyle,
+}: Props) {
   const pct = Math.max(0, Math.min(1, progress || 0));
   const idx = Math.floor(text.length * pct);
 
   const before = text.slice(0, idx);
   const after = text.slice(idx);
 
-  const readTextStyle = variant === 'expanded' ? styles.readTextExpanded : styles.readText;
-  const spokenStyle =
+  const readTextStyle = [
+    variant === 'expanded' ? styles.readTextExpanded : styles.readText,
+    textColor ? { color: textColor } : null,
+    animatedStyle,
+  ];
+  const highlightColor = useMemo(() => {
+    // Try to convert hex (#RRGGBB) to rgba for opacity control
+    const hex = accentColor?.trim?.() || '';
+    if (/^#?[0-9a-fA-F]{6}$/.test(hex)) {
+      const clean = hex.replace('#', '');
+      const r = parseInt(clean.slice(0, 2), 16);
+      const g = parseInt(clean.slice(2, 4), 16);
+      const b = parseInt(clean.slice(4, 6), 16);
+      const alpha = variant === 'expanded' ? 0.35 : 0.25;
+      return `rgba(${r},${g},${b},${alpha})`;
+    }
+    return variant === 'expanded'
+      ? 'rgba(37, 99, 235, 0.35)'
+      : 'rgba(37, 99, 235, 0.25)';
+  }, [accentColor, variant]);
+
+  const spokenStyle = [
+    styles.spokenBase,
     variant === 'expanded'
-      ? [styles.spoken, styles.spokenExpanded]
-      : styles.spoken;
+      ? styles.spokenExpanded
+      : styles.spokenDefault,
+    { backgroundColor: highlightColor },
+  ];
 
   return (
-    <Text style={readTextStyle}>
-      <Text style={spokenStyle}>{before}</Text>
-      <Text>{after}</Text>
-    </Text>
+    <View style={styles.textWrapper}>
+      <Animated.Text style={readTextStyle}>
+        <Text style={spokenStyle}>{before}</Text>
+        <Text>{after}</Text>
+      </Animated.Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  readText: { fontSize: 15, lineHeight: 22 },
-  readTextExpanded: { fontSize: 18, lineHeight: 28 },
-  spoken: {
-    backgroundColor: 'rgba(37, 99, 235, 0.25)',
-    borderRadius: 4,
-    paddingHorizontal: 2,
+  textWrapper: {
+    borderRadius: 12,
+    overflow: 'visible',
+    padding: 0,
   },
-  spokenExpanded: {
-    backgroundColor: 'rgba(37, 99, 235, 0.35)',
-    paddingHorizontal: 4,
-    borderRadius: 6,
-  },
+  readText: { fontSize: 15, lineHeight: 22, borderRadius: 10 },
+  readTextExpanded: { fontSize: 17, lineHeight: 26, borderRadius: 12 },
+  spokenBase: { borderRadius: 10, overflow: 'hidden' },
+  spokenDefault: { paddingHorizontal: 2, paddingVertical: 2 },
+  spokenExpanded: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
 });

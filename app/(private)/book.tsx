@@ -15,6 +15,7 @@ import { useSafeInsets } from '@/hooks/useSafeInsets';
 import { useSmartRefresh } from '@/hooks/useSmartRefresh';
 import { useTranslation } from '@/i18n/LanguageContext';
 import { normalizeLanguage } from '@/i18n/translations';
+import { useSoundFx } from '@/features/sound/SoundProvider';
 import { audioLogger, favoritesLogger } from '@/utils/logger';
 
 import { AUDIO_BAR_HEIGHT, AudioBar } from '@/features/book/AudioBar';
@@ -42,6 +43,7 @@ export default function BookScreen() {
   const { toggleFavorite, isPending } = useOptimizedFavorites();
   const token = session?.token ?? '';
   const { language: appLanguage, t } = useTranslation();
+  const { skipNextClick, playClick } = useSoundFx();
 
   const imageUri = useMemo(() => {
     const path = cover_url?.startsWith('/') ? cover_url : `/${cover_url}`;
@@ -118,7 +120,11 @@ export default function BookScreen() {
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const detailsAnim = useRef(new Animated.Value(0)).current;
   const uiTransition = useRef(new Animated.Value(0)).current;
+  const summaryAnim = useRef(new Animated.Value(0)).current;
+  const summaryFontAnim = useRef(new Animated.Value(0)).current;
   const [lockedVisual, setLockedVisual] = useState<boolean>(initialLocked);
+  const [summaryOverlayVisible, setSummaryOverlayVisible] = useState(false);
+  const summaryTouchStartRef = useRef<number | null>(null);
   const apiLocked = useMemo(
     () => Boolean(summary?.locked) || (summary !== null && !summary?.audio_url),
     [summary],
@@ -206,6 +212,7 @@ export default function BookScreen() {
 
   const handleGenrePress = useCallback(
     (genre: { label: string; genreId: number | null; slug: string }) => {
+      playClick();
       const genreIdParam = genre.genreId ? String(genre.genreId) : undefined;
       router.push({
         pathname: '/(private)/(home)',
@@ -217,7 +224,7 @@ export default function BookScreen() {
         },
       });
     },
-    [router],
+    [router, playClick],
   );
 
   const showToast = useCallback(
@@ -278,13 +285,37 @@ export default function BookScreen() {
   }, [audioPath, savedPosition]);
 
   const toggleSummaryExpanded = useCallback(() => {
+    playClick();
+    const next = !summaryExpanded;
     favoritesLogger.debug('Alternando estado do resumo expandido', {
-      expanded: !summaryExpanded,
+      expanded: next,
     });
-    setSummaryExpanded((prev) => !prev);
-  }, [summaryExpanded]);
+    if (next) {
+      setSummaryExpanded(true);
+      setSummaryOverlayVisible(true);
+      summaryAnim.setValue(0);
+      summaryFontAnim.setValue(0);
+      Animated.timing(summaryFontAnim, { toValue: 1, duration: 1000, useNativeDriver: false }).start();
+      Animated.timing(summaryAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(summaryAnim, {
+        toValue: 0,
+        duration: 1000,
+        useNativeDriver: true,
+      }).start(() => {
+        setSummaryExpanded(false);
+        setSummaryOverlayVisible(false);
+      });
+      Animated.timing(summaryFontAnim, { toValue: 0, duration: 1000, useNativeDriver: false }).start();
+    }
+  }, [summaryExpanded, summaryAnim, summaryFontAnim, playClick]);
 
   const handleUnlock = useCallback(async () => {
+    playClick();
     if (!summary?.bookId) return;
     const keyBalance = session?.user?.keys ?? 0;
     if (keyBalance <= 0) {
@@ -371,7 +402,7 @@ export default function BookScreen() {
     } finally {
       setUnlocking(false);
     }
-  }, [authedFetch, lang, summary?.bookId, t, updateSessionUser, requestCache, title, author, session?.user?.unlockedCount, showToast]);
+  }, [authedFetch, lang, summary?.bookId, t, updateSessionUser, requestCache, title, author, session?.user?.unlockedCount, showToast, playClick]);
 
   const loadReview = useCallback(
     async (bookId: string) => {
@@ -399,6 +430,7 @@ export default function BookScreen() {
 
   const handleSelectRating = useCallback(
     async (value: number) => {
+      playClick();
       if (!summary?.bookId) return;
       if (reviewSubmitting) return;
       if (progressRatio <= 0) {
@@ -433,10 +465,11 @@ export default function BookScreen() {
         setReviewSubmitting(false);
       }
     },
-    [authedFetch, reviewSubmitting, summary?.bookId, progressRatio, t, showToast],
+    [authedFetch, reviewSubmitting, summary?.bookId, progressRatio, t, showToast, playClick],
   );
 
   const handleToggleFavorite = useCallback(async () => {
+    playClick();
     if (!title || !author) return;
     if (!token) {
       Alert.alert('Favoritos', 'Faça login para gerenciar favoritos.');
@@ -480,7 +513,7 @@ export default function BookScreen() {
         author,
       });
     }
-  }, [title, author, lang, token, favorite, toggleFavorite]);
+  }, [title, author, lang, token, favorite, toggleFavorite, playClick]);
 
   const scrollContentStyle = useMemo(
     () => [
@@ -747,13 +780,16 @@ export default function BookScreen() {
 
   return (
     <Animated.View style={{ flex: 1, opacity: contentOpacity }}>
-      <Pressable
-        style={[styles.backButton, { top: insets.top + 12 }]}
-        onPress={() => router.back()}
-        hitSlop={12}
-      >
-        <Text style={[styles.backButtonText, { color: theme.tint }]}>←</Text>
-      </Pressable>
+      {!summaryExpanded && (
+        <Pressable
+          style={[styles.backButton, { top: insets.top + 12 }]}
+          onPressIn={() => skipNextClick()}
+          onPress={() => router.back()}
+          hitSlop={12}
+        >
+          <Text style={[styles.backButtonText, { color: theme.tint }]}>←</Text>
+        </Pressable>
+      )}
       {lockedVisual && (
         <Pressable
           style={[
@@ -948,43 +984,85 @@ export default function BookScreen() {
           summaryText={resolvedSummaryText}
           progress={audioReady ? progressRatio : 0}
           backgroundColor={theme.bookCard}
+          accentColor={theme.tint}
+          textColor={theme.text}
           expanded={summaryExpanded}
           onToggleExpanded={toggleSummaryExpanded}
         />
         </Animated.View>
       </ScrollView>
 
-      {summaryExpanded && (summary?.summary || lockedVisual) && (
-        <View
+      {summaryOverlayVisible && (resolvedSummaryText || lockedVisual) && (
+        <Animated.View
+          pointerEvents={summaryExpanded ? 'auto' : 'none'}
           style={[
             styles.summaryOverlay,
             {
-              paddingTop: insets.top + 24,
-              paddingBottom: AUDIO_BAR_HEIGHT + insets.bottom + 12,
-              bottom: AUDIO_BAR_HEIGHT + insets.bottom + 12,
+              paddingTop: insets.top + 10,
+              paddingBottom: 0,
+              bottom: 0,
               backgroundColor: theme.background,
+              opacity: summaryAnim,
+              transform: [
+                {
+                  translateY: summaryAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [40, 0],
+                  }),
+                },
+              ],
+              zIndex: 90,
             },
           ]}
         >
           <Pressable
-            style={[styles.overlayClose, { top: insets.top + 8 }]}
+            style={[styles.overlayClose, { top: insets.top + 4 }]}
             onPress={toggleSummaryExpanded}
             hitSlop={12}
+            pointerEvents="auto"
           >
             <Text style={styles.overlayCloseText}>✕</Text>
           </Pressable>
           <ScrollView
-            contentContainerStyle={[styles.overlayContent, { paddingBottom: AUDIO_BAR_HEIGHT + insets.bottom + 32 }]}
+            contentContainerStyle={[
+              styles.overlayContent,
+              {
+                paddingBottom: AUDIO_BAR_HEIGHT + insets.bottom + 24,
+                paddingHorizontal: 12,
+              },
+            ]}
             showsVerticalScrollIndicator
+            onTouchStart={() => {
+              summaryTouchStartRef.current = Date.now();
+            }}
+            onTouchEnd={() => {
+              const start = summaryTouchStartRef.current;
+              summaryTouchStartRef.current = null;
+              if (!start) return;
+              const delta = Date.now() - start;
+              if (delta <= 100) toggleSummaryExpanded();
+            }}
           >
             <Text style={[styles.overlayTitle, { color: theme.tint }]}>Resumo</Text>
             <HighlightedSummary
               text={resolvedSummaryText ?? ''}
               progress={audioReady ? progressRatio : 0}
               variant="expanded"
+              accentColor={theme.tint}
+              textColor={theme.text}
+              animatedStyle={{
+                transform: [
+                  {
+                    scale: summaryFontAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1, 1.08],
+                    }),
+                  },
+                ],
+              }}
             />
           </ScrollView>
-        </View>
+        </Animated.View>
       )}
 
       <Animated.View
@@ -1022,6 +1100,7 @@ export default function BookScreen() {
         style={{
           opacity: audioOpacity,
           transform: [{ scale: audioScale }],
+          zIndex: 95,
         }}
       >
         <AudioBar
@@ -1141,16 +1220,16 @@ const styles = StyleSheet.create({
   overlayClose: {
     position: 'absolute',
     right: 20,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0,0,0,0.1)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.14)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   overlayCloseText: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
   },
   overlayContent: {
     paddingTop: 8,

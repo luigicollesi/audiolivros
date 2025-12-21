@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useDispatch } from 'react-redux';
@@ -13,6 +13,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
 import { useTranslation } from '@/i18n/LanguageContext';
 import { getTimezoneInfo } from '@/utils/timezone';
+import ClickPressable from '@/components/shared/ClickPressable';
 
 const MIN_PASSWORD_LEN = 8;
 const createMachineCode = () => `device-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -134,11 +135,11 @@ export default function ForgotPasswordScreen() {
               if (error) setError(null);
             }}
             rightAccessory={
-              <Pressable onPress={() => setShowPassword((prev) => !prev)}>
+              <ClickPressable onPress={() => setShowPassword((prev) => !prev)}>
                 <Text style={{ color: palette.tint, fontWeight: '600' }}>
                   {showPassword ? t('auth.password.hide') : t('auth.password.show')}
                 </Text>
-              </Pressable>
+              </ClickPressable>
             }
           />
           <TextField
@@ -155,11 +156,11 @@ export default function ForgotPasswordScreen() {
                 : undefined
             }
             rightAccessory={
-              <Pressable onPress={() => setShowConfirm((prev) => !prev)}>
+              <ClickPressable onPress={() => setShowConfirm((prev) => !prev)}>
                 <Text style={{ color: palette.tint, fontWeight: '600' }}>
                   {showConfirm ? t('auth.password.hide') : t('auth.password.show')}
                 </Text>
-              </Pressable>
+              </ClickPressable>
             }
           />
           <Text style={styles.hint}>
@@ -167,7 +168,7 @@ export default function ForgotPasswordScreen() {
           </Text>
           {error && <Text style={styles.error}>{error}</Text>}
 
-          <Pressable
+          <ClickPressable
             style={[styles.primaryBtn, (!passwordsMatch || loading) && styles.primaryBtnDisabled]}
             onPress={submit}
             disabled={!passwordsMatch || loading}
@@ -179,11 +180,11 @@ export default function ForgotPasswordScreen() {
                 {t('auth.password.saveAndContinue')}
               </Text>
             )}
-          </Pressable>
+          </ClickPressable>
 
-          <Pressable style={styles.linkBtn} onPress={() => router.back()}>
+          <ClickPressable style={styles.linkBtn} onPress={() => router.back()}>
             <Text style={styles.linkText}>{t('auth.common.back')}</Text>
-          </Pressable>
+          </ClickPressable>
         </AuthCard>
       </View>
     </SafeAreaView>

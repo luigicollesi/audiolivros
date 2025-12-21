@@ -8,7 +8,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
@@ -22,6 +22,8 @@ import { BASE_URL } from '@/constants/API';
 import { useTranslation } from '@/i18n/LanguageContext';
 import { formatLanguageLabel, normalizeLanguage } from '@/i18n/translations';
 import { setStatusBarBackgroundColor } from 'expo-status-bar';
+import { useSoundFx } from '@/features/sound/SoundProvider';
+import ClickPressable from '@/components/shared/ClickPressable';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -36,6 +38,7 @@ export default function ProfileScreen() {
     finishedDirty,
     acknowledgeFinished,
   } = useAuth();
+  const { playTransition1, playClick } = useSoundFx();
   const { authedFetch } = useAuthedFetch();
   const { language: currentLanguage, setLanguage, availableLanguages, t } = useTranslation();
 
@@ -45,6 +48,14 @@ export default function ProfileScreen() {
   const toastAnim = useRef(new Animated.Value(0)).current;
   const [showCheckinOverlay, setShowCheckinOverlay] = useState(false);
   const checkinAnim = useRef(new Animated.Value(0)).current;
+  const params = useLocalSearchParams<{ phoneUpdated?: string }>();
+  const [emailCopied, setEmailCopied] = useState(false);
+  const [idCopied, setIdCopied] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      playTransition1();
+    }, [playTransition1]),
+  );
 
   const user = session?.user;
   const streakDays = (user?.days as number | undefined) ?? (user as any)?.streakDays ?? 0;
@@ -127,7 +138,16 @@ export default function ProfileScreen() {
     [authedFetch, user?.language, languageSubmitting, setLanguage, t, currentLanguage, updateSessionUser, showToast],
   );
 
+  useEffect(() => {
+    const updated = params?.phoneUpdated;
+    if (updated === '1' || updated === 'true') {
+      showToast(t('profile.phoneUpdated') ?? 'Telefone atualizado com sucesso.');
+      router.setParams?.({ phoneUpdated: undefined });
+    }
+  }, [params?.phoneUpdated, showToast, t, router]);
+
   const handleSignOut = useCallback(() => {
+    playClick();
     Alert.alert(t('profile.signOutConfirmTitle'), t('profile.signOutConfirmMessage'), [
       { text: t('profile.cancel'), style: 'cancel' },
       {
@@ -138,18 +158,21 @@ export default function ProfileScreen() {
         },
       },
     ]);
-  }, [signOut, t]);
+  }, [signOut, t, playClick]);
 
   const handleCopy = useCallback(
-    async (value: string, label: string) => {
+    async (value: string, label: string, setFlag: React.Dispatch<React.SetStateAction<boolean>>) => {
+      playClick();
       try {
         await Clipboard.setStringAsync(value);
         showToast(t('profile.copied'));
+        setFlag(true);
+        setTimeout(() => setFlag(false), 2000);
       } catch {
         Alert.alert(label, t('common.error'));
       }
     },
-    [t, showToast],
+    [t, showToast, playClick],
   );
 
   useEffect(() => {
@@ -176,6 +199,7 @@ export default function ProfileScreen() {
   }, [authedFetch, finishedDirty, acknowledgeFinished, updateSessionUser]);
 
   const openCheckin = useCallback(() => {
+    playClick();
     setShowCheckinOverlay(true);
     checkinAnim.setValue(0);
     Animated.timing(checkinAnim, {
@@ -183,15 +207,16 @@ export default function ProfileScreen() {
       duration: 220,
       useNativeDriver: true,
     }).start();
-  }, [checkinAnim]);
+  }, [checkinAnim, playClick]);
 
   const closeCheckin = useCallback(() => {
+    playClick();
     Animated.timing(checkinAnim, {
       toValue: 0,
       duration: 220,
       useNativeDriver: true,
     }).start(() => setShowCheckinOverlay(false));
-  }, [checkinAnim]);
+  }, [checkinAnim, playClick]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
@@ -263,10 +288,10 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <Pressable style={styles.checkinButton} onPress={openCheckin}>
+        <ClickPressable style={styles.checkinButton} onPress={openCheckin}>
           <Ionicons name="gift" size={20} color={palette.background} />
           <Text style={styles.checkinText}>{t('profile.checkin')}</Text>
-        </Pressable>
+        </ClickPressable>
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>{t('profile.account')}</Text>
@@ -283,9 +308,15 @@ export default function ProfileScreen() {
               <Text style={styles.infoLabel}>{t('profile.phone')}</Text>
               <Text style={styles.infoValue}>{user?.phone ?? t('profile.phoneMissing')}</Text>
             </View>
-            <Pressable style={styles.linkButton} onPress={() => router.push('/(private)/(home)/profile/phone')}>
+            <ClickPressable
+              style={styles.linkButton}
+              onPress={() => {
+                playClick();
+                router.push('/(private)/(home)/profile/phone');
+              }}
+            >
               <Text style={styles.linkButtonText}>{t('profile.changePhone')}</Text>
-            </Pressable>
+            </ClickPressable>
           </View>
           <View style={styles.infoRow}>
             <Ionicons name="language" size={18} color={palette.tint} />
@@ -293,7 +324,10 @@ export default function ProfileScreen() {
               <Text style={styles.infoLabel}>{t('profile.language')}</Text>
               <Pressable
                 style={styles.languageButton}
-                onPress={() => setLanguagePopoverVisible((prev) => !prev)}
+                onPress={() => {
+                  playClick();
+                  setLanguagePopoverVisible((prev) => !prev);
+                }}
                 disabled={languageSubmitting}
               >
                 {languageSubmitting ? (
@@ -304,21 +338,27 @@ export default function ProfileScreen() {
               </Pressable>
               {languagePopoverVisible && (
                 <>
-                  <Pressable
+                  <ClickPressable
                     style={[StyleSheet.absoluteFillObject, styles.popoverOverlay]}
-                    onPress={() => setLanguagePopoverVisible(false)}
+                    onPress={() => {
+                      playClick();
+                      setLanguagePopoverVisible(false);
+                    }}
                   />
                   <View style={styles.popover}>
                     {languageOptions.map((option) => {
                       const selected = option.id === normalizeLanguage(user?.language ?? currentLanguage);
                       return (
-                        <Pressable
+                        <ClickPressable
                           key={option.id}
                           style={[
                             styles.popoverItem,
                             selected && styles.popoverItemSelected,
                           ]}
-                          onPress={() => handleSelectLanguage(option.id)}
+                          onPress={() => {
+                            playClick();
+                            handleSelectLanguage(option.id);
+                          }}
                         >
                           <Text
                             style={[
@@ -328,7 +368,7 @@ export default function ProfileScreen() {
                           >
                             {option.label}
                           </Text>
-                        </Pressable>
+                        </ClickPressable>
                       );
                     })}
                   </View>
@@ -346,9 +386,16 @@ export default function ProfileScreen() {
               <Text style={styles.infoLabel}>{t('profile.support')}</Text>
               <Text style={styles.infoValue}>{supportEmail}</Text>
             </View>
-            <Pressable style={styles.linkButton} onPress={() => handleCopy(supportEmail, t('profile.support'))}>
-              <Text style={styles.linkButtonText}>{t('profile.copy')}</Text>
-            </Pressable>
+            {emailCopied ? (
+              <Text style={styles.linkButtonText}>{t('profile.copied')}</Text>
+            ) : (
+              <ClickPressable
+                style={styles.linkButton}
+                onPress={() => handleCopy(supportEmail, t('profile.support'), setEmailCopied)}
+              >
+                <Text style={styles.linkButtonText}>{t('profile.copy')}</Text>
+              </ClickPressable>
+            )}
           </View>
           <View style={styles.infoRow}>
             <Ionicons name="id-card-outline" size={18} color={palette.tint} />
@@ -356,22 +403,38 @@ export default function ProfileScreen() {
               <Text style={styles.infoLabel}>{t('profile.userId')}</Text>
               <Text style={styles.infoValue}>{userId}</Text>
             </View>
-            <Pressable style={styles.linkButton} onPress={() => handleCopy(userId, t('profile.userId'))}>
-              <Text style={styles.linkButtonText}>{t('profile.copy')}</Text>
-            </Pressable>
+            {idCopied ? (
+              <Text style={styles.linkButtonText}>{t('profile.copied')}</Text>
+            ) : (
+              <ClickPressable
+                style={styles.linkButton}
+                onPress={() => handleCopy(userId, t('profile.userId'), setIdCopied)}
+              >
+                <Text style={styles.linkButtonText}>{t('profile.copy')}</Text>
+              </ClickPressable>
+            )}
           </View>
         </View>
 
         <View style={styles.actionsRow}>
           <View style={styles.actionsRowInner}>
-            <Pressable style={styles.secondaryButton} onPress={handleSignOut}>
+            <ClickPressable
+              style={styles.secondaryButton}
+              onPress={handleSignOut}
+            >
               <Ionicons name="log-out-outline" size={18} color={palette.tint} />
               <Text style={styles.secondaryButtonText}>{t('profile.signOut')}</Text>
-            </Pressable>
-            <Pressable style={styles.dangerButton} onPress={() => router.push('/(private)/(home)/profile/delete')}>
+            </ClickPressable>
+            <ClickPressable
+              style={styles.dangerButton}
+              onPress={() => {
+                playClick();
+                router.push('/(private)/(home)/profile/delete');
+              }}
+            >
               <Ionicons name="trash" size={18} color="#fff" />
               <Text style={styles.dangerButtonText}>{t('profile.delete')}</Text>
-            </Pressable>
+            </ClickPressable>
           </View>
         </View>
       </ScrollView>
@@ -783,7 +846,7 @@ const createStyles = (colors: Palette, isDark: boolean) => {
     toastContainer: {
       backgroundColor: 'transparent',
       position: 'absolute',
-      opacity: 0.8,
+      opacity: 0.95,
       top: 0,
       bottom: 0,
       left: 0,

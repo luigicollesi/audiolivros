@@ -87,27 +87,7 @@ export function useBookAudio({ audioPath, token, authedFetch, ready = true }: Us
       const slug = encodeURIComponent(audioPath);
       const candidate = `${BASE_URL}/audios/luiz/${slug}.mp3`;
 
-      const probeHeaders: HeadersInit = {
-        Range: 'bytes=0-0',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
       audioLogger.info('Carregando áudio do livro', { audioPath });
-      const ok = await (async () => {
-        try {
-          const r = await fetchWithTimeout(candidate, { headers: probeHeaders }, 8000);
-          return r.ok || r.status === 206;
-        } catch {
-          return false;
-        }
-      })();
-
-      if (!ok) {
-        if (!active) return;
-        setAudioErr('Áudio não encontrado ou acesso negado em /audio.');
-        setAudioLoading(false);
-        audioLogger.warn('Áudio não encontrado no endpoint primário', { audioPath: candidate });
-        return;
-      }
 
       try {
         await player.replace({

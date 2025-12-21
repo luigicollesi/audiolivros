@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useDispatch } from 'react-redux';
@@ -12,6 +12,7 @@ import { authLogger } from '@/utils/logger';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
 import { useTranslation } from '@/i18n/LanguageContext';
+import ClickPressable from '@/components/shared/ClickPressable';
 
 const MIN_PASSWORD_LEN = 8;
 
@@ -147,11 +148,11 @@ export default function EmailPasswordScreen() {
               if (error) setError(null);
             }}
             rightAccessory={
-              <Pressable onPress={() => setShowPassword((prev) => !prev)}>
+              <ClickPressable onPress={() => setShowPassword((prev) => !prev)}>
                 <Text style={{ color: palette.tint, fontWeight: '600' }}>
                   {showPassword ? t('auth.password.hide') : t('auth.password.show')}
                 </Text>
-              </Pressable>
+              </ClickPressable>
             }
           />
           <TextField
@@ -168,11 +169,11 @@ export default function EmailPasswordScreen() {
                 : undefined
             }
             rightAccessory={
-              <Pressable onPress={() => setShowConfirm((prev) => !prev)}>
+              <ClickPressable onPress={() => setShowConfirm((prev) => !prev)}>
                 <Text style={{ color: palette.tint, fontWeight: '600' }}>
                   {showConfirm ? t('auth.password.hide') : t('auth.password.show')}
                 </Text>
-              </Pressable>
+              </ClickPressable>
             }
           />
 
@@ -184,7 +185,7 @@ export default function EmailPasswordScreen() {
           )}
           {error && <Text style={styles.error}>{error}</Text>}
 
-          <Pressable
+          <ClickPressable
             style={[styles.primaryBtn, (!passwordsMatch || loading) && styles.primaryBtnDisabled]}
             onPress={submit}
             disabled={!passwordsMatch || loading}
@@ -194,11 +195,11 @@ export default function EmailPasswordScreen() {
             ) : (
               <Text style={styles.primaryBtnText}>{t('auth.password.continue')}</Text>
             )}
-          </Pressable>
+          </ClickPressable>
 
-          <Pressable style={styles.secondaryBtn} onPress={() => router.back()}>
+          <ClickPressable style={styles.secondaryBtn} onPress={() => router.back()}>
             <Text style={styles.secondaryBtnText}>{t('auth.common.back')}</Text>
-          </Pressable>
+          </ClickPressable>
         </AuthCard>
       </View>
     </SafeAreaView>

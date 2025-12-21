@@ -36,6 +36,7 @@ type Props = {
   onClearChip: () => void;
   onDismissKeyboard: () => void;
   onOpenFilters: () => void;
+  onClickSound?: () => void;
 };
 
 export function HomeHeader({
@@ -60,6 +61,7 @@ export function HomeHeader({
   onClearChip,
   onDismissKeyboard,
   onOpenFilters,
+  onClickSound,
 }: Props) {
   const trimmedValue = searchInput.trim();
   const submitDisabled = !trimmedValue || trimmedValue === searchApplied;
@@ -174,7 +176,10 @@ export function HomeHeader({
           <Animated.View style={chipStyle} pointerEvents={hasClearChip ? 'auto' : 'none'}>
             {hasClearChip && (
               <Pressable
-                onPress={onClearChip}
+                onPress={() => {
+                  onClickSound?.();
+                  onClearChip();
+                }}
                 style={[
                   styles.searchChip,
                   {
@@ -190,7 +195,10 @@ export function HomeHeader({
             )}
           </Animated.View>
           <Pressable
-            onPress={onOpenFilters}
+            onPress={() => {
+              onClickSound?.();
+              onOpenFilters();
+            }}
             style={[
               styles.filterButton,
               {
@@ -219,7 +227,10 @@ export function HomeHeader({
           placeholder={strings.searchPlaceholder}
           value={searchInput}
           onChangeText={onChangeSearch}
-          onFocus={expandClose}
+          onFocus={() => {
+            onClickSound?.();
+            expandClose();
+          }}
           style={[
             styles.searchInput,
             {
@@ -230,7 +241,10 @@ export function HomeHeader({
           ]}
           returnKeyType="search"
           blurOnSubmit
-          onSubmitEditing={onApplySearch}
+          onSubmitEditing={() => {
+            onClickSound?.();
+            onApplySearch();
+          }}
           autoCapitalize="none"
           autoCorrect={false}
           placeholderTextColor={placeholderColor}
@@ -244,7 +258,10 @@ export function HomeHeader({
             },
             submitDisabled && styles.searchButtonDisabled,
           ]}
-          onPress={onApplySearch}
+          onPress={() => {
+            onClickSound?.();
+            onApplySearch();
+          }}
           disabled={submitDisabled}
         >
           <Text style={[styles.searchButtonText, { color: actionTextColor }]}>
@@ -252,7 +269,13 @@ export function HomeHeader({
           </Text>
         </Pressable>
         <Animated.View style={[styles.closeSlot, { width: closeWidth }]}>
-          <Pressable style={styles.keyboardButton} onPress={() => collapseClose(true)}>
+          <Pressable
+            style={styles.keyboardButton}
+            onPress={() => {
+              onClickSound?.();
+              collapseClose(true);
+            }}
+          >
             <Animated.Text
               style={[
                 styles.keyboardButtonText,

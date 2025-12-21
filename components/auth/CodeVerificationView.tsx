@@ -1,8 +1,9 @@
 // components/auth/CodeVerificationView.tsx
 import React, { useCallback, useMemo, useRef } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
+import ClickPressable from '@/components/shared/ClickPressable';
 
 const DEFAULT_CODE_LENGTH = 6;
 
@@ -67,13 +68,13 @@ export function CodeVerificationView({
       <Text style={styles.title}>{title}</Text>
       {!!subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
 
-      <Pressable style={styles.codeBoxes} onPress={focusInput}>
+      <ClickPressable style={styles.codeBoxes} onPress={focusInput}>
         {digits.map((digit, index) => (
           <View key={index} style={styles.codeBox}>
             <Text style={styles.codeDigit}>{digit}</Text>
           </View>
         ))}
-      </Pressable>
+      </ClickPressable>
 
       <TextInput
         ref={inputRef}
@@ -87,7 +88,7 @@ export function CodeVerificationView({
 
       {!!error && <Text style={styles.error}>{error}</Text>}
 
-      <Pressable
+      <ClickPressable
         style={[styles.primaryBtn, (code.length !== codeLength || loading) && styles.primaryBtnDisabled]}
         onPress={handleSubmit}
         disabled={code.length !== codeLength || loading}
@@ -97,22 +98,22 @@ export function CodeVerificationView({
         ) : (
           <Text style={styles.primaryBtnText}>{submitLabel}</Text>
         )}
-      </Pressable>
+      </ClickPressable>
 
       {!!secondActionLabel && onSecondAction && (
-        <Pressable
+        <ClickPressable
           style={[styles.secondaryBtn, secondActionDisabled && styles.secondaryBtnDisabled]}
           onPress={onSecondAction}
           disabled={secondActionDisabled}
         >
           <Text style={styles.secondaryBtnText}>{secondActionLabel}</Text>
-        </Pressable>
+        </ClickPressable>
       )}
 
       {!!onBack && (
-        <Pressable style={styles.backBtn} onPress={onBack}>
+        <ClickPressable style={styles.backBtn} onPress={onBack}>
           <Text style={styles.backBtnText}>{backLabel}</Text>
-        </Pressable>
+        </ClickPressable>
       )}
     </View>
   );

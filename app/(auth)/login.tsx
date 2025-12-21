@@ -3,7 +3,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -24,6 +23,7 @@ import { formatLanguageLabel } from '@/i18n/translations';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
 import { getTimezoneInfo } from '@/utils/timezone';
+import ClickPressable from '@/components/shared/ClickPressable';
 
 type SessionPayload = {
   token: string;
@@ -283,16 +283,16 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Pressable
+          <ClickPressable
             style={styles.languageButton}
             onPress={() => setLanguagePopoverVisible((prev) => !prev)}
             hitSlop={8}
           >
             <Text style={styles.languageButtonText}>{t('login.languageButton')} · {formatLanguageLabel(language)}</Text>
-          </Pressable>
+          </ClickPressable>
           {languagePopoverVisible && (
             <>
-              <Pressable
+              <ClickPressable
                 style={styles.languageOverlay}
                 onPress={() => setLanguagePopoverVisible(false)}
               />
@@ -300,7 +300,7 @@ export default function LoginScreen() {
                 {availableLanguages.map((code) => {
                   const selected = code === language;
                   return (
-                    <Pressable
+                    <ClickPressable
                       key={code}
                       style={[styles.languageOption, selected && styles.languageOptionSelected]}
                       onPress={() => {
@@ -311,7 +311,7 @@ export default function LoginScreen() {
                       <Text style={[styles.languageOptionText, selected && styles.languageOptionTextSelected]}>
                         {formatLanguageLabel(code)}
                       </Text>
-                    </Pressable>
+                    </ClickPressable>
                   );
                 })}
               </View>
@@ -349,7 +349,7 @@ export default function LoginScreen() {
                   if (localError) setLocalError(null);
                 }}
               />
-              <Pressable
+              <ClickPressable
                 style={styles.passwordToggle}
                 onPress={() => setShowPassword((prev) => !prev)}
                 hitSlop={8}
@@ -357,13 +357,13 @@ export default function LoginScreen() {
                 <Text style={styles.passwordToggleText}>
                   {showPassword ? t('auth.password.hide') : t('auth.password.show')}
                 </Text>
-              </Pressable>
+              </ClickPressable>
             </View>
-          <Pressable style={styles.linkRight} onPress={() => router.push('/(auth)/forgot-email')}>
+          <ClickPressable style={styles.linkRight} onPress={() => router.push('/(auth)/forgot-email')}>
             <Text style={styles.linkRightText}>{t('login.forgotPassword')}</Text>
-          </Pressable>
+          </ClickPressable>
           {localError && <Text style={styles.error}>{localError}</Text>}
-            <Pressable
+            <ClickPressable
               style={[styles.primaryBtn, (!canSubmitEmail || localLoading) && styles.primaryBtnDisabled]}
               onPress={submitEmailLogin}
               disabled={!canSubmitEmail || localLoading}
@@ -373,13 +373,13 @@ export default function LoginScreen() {
               ) : (
                 <Text style={styles.primaryBtnText}>{t('login.submit')}</Text>
               )}
-            </Pressable>
-            <Pressable
+            </ClickPressable>
+            <ClickPressable
               style={styles.secondaryBtn}
               onPress={() => router.push('/(auth)/email')}
             >
               <Text style={styles.secondaryBtnText}>{t('login.createAccount')}</Text>
-            </Pressable>
+            </ClickPressable>
           </View>
 
           <View style={styles.divider}>

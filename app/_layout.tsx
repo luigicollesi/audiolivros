@@ -14,6 +14,8 @@ import { LanguageProvider } from '@/i18n/LanguageContext';
 import { store } from '@/store';
 import { configureLogger } from '@/utils/logger';
 import { Provider } from 'react-redux';
+import { SoundProvider } from '@/features/sound/SoundProvider';
+import { BackgroundMusic } from '@/features/sound/BackgroundMusic';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -66,18 +68,20 @@ function RootLayoutNav() {
   return (
     <Provider store={store}>
       <LanguageProvider>
-        <AuthProvider>
-          <SafeAreaProvider>
-            <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-              <GuardedStack />
-            </ThemeProvider>
-          </SafeAreaProvider>
-        </AuthProvider>
+        <SoundProvider>
+          <AuthProvider>
+            <SafeAreaProvider>
+              <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+                <BackgroundMusic />
+                <GuardedStack />
+              </ThemeProvider>
+            </SafeAreaProvider>
+          </AuthProvider>
+        </SoundProvider>
       </LanguageProvider>
     </Provider>
   );
 }
-
 function GuardedStack() {
   const { loading, session } = useAuth();
   const authed = !!session?.token;

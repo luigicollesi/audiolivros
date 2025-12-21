@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
@@ -11,6 +11,7 @@ import { authLogger } from '@/utils/logger';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/shared/useColorScheme';
 import { useTranslation } from '@/i18n/LanguageContext';
+import ClickPressable from '@/components/shared/ClickPressable';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -88,7 +89,7 @@ export default function ForgotEmailScreen() {
             error={error}
           />
 
-          <Pressable
+          <ClickPressable
             style={[styles.primaryBtn, (!canSubmit || loading) && styles.primaryBtnDisabled]}
             onPress={submit}
             disabled={!canSubmit || loading}
@@ -98,11 +99,11 @@ export default function ForgotEmailScreen() {
             ) : (
               <Text style={styles.primaryBtnText}>{t('auth.common.sendCode')}</Text>
             )}
-          </Pressable>
+          </ClickPressable>
 
-          <Pressable style={styles.linkBtn} onPress={() => router.back()}>
+          <ClickPressable style={styles.linkBtn} onPress={() => router.back()}>
             <Text style={styles.linkText}>{t('auth.common.back')}</Text>
-          </Pressable>
+          </ClickPressable>
         </AuthCard>
       </View>
     </SafeAreaView>
